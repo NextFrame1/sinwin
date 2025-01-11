@@ -63,7 +63,7 @@ def create_final_req():
 def get_show_menu_markup():
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text='💻️ Показать меню', callback_data='showmenu_after_reg'))
+	builder.row(InlineKeyboardButton(text='💻️ Показать меню', callback_data='showmenu'))
 
 	builder.adjust(1)
 

@@ -59,10 +59,8 @@ async def cmd_start(message: Message):
 
 @register_router.callback_query(F.data == "submit_reg_request")
 async def accept_submitted_reg_request_callback(call: CallbackQuery, state: FSMContext):
-	await call.message.delete()
-
 	async with ChatActionSender.typing(bot=bot, chat_id=call.message.chat.id):
-		await call.message.answer('Напишите Ваше имя и возраст в формате "Имя Возраст" (пример: Иван 22):')
+		await call.message.edit_text('Напишите Ваше имя и возраст в формате "Имя Возраст" (пример: Иван 22):')
 
 	await state.set_state(RegUserGroup.name)
 
@@ -87,12 +85,9 @@ async def capture_user_name(message: Message, state: FSMContext):
 @register_router.callback_query(F.data.startswith('set_experience_time'), RegUserGroup.experience_status)
 async def set_experience_status(call: CallbackQuery, state: FSMContext):
 	await state.update_data(experience_status='Нет/немного' if call.data.startswith('set_experience_time_no') else 'Да')
-
 	if call.data == 'set_experience_time':
-		await call.message.delete()
-
 		async with ChatActionSender.typing(bot=bot, chat_id=call.message.chat.id):
-			await call.message.answer('Сколько месяцев/лет вы занимаетесь арбитражем трафика?\nЕсли нет вашего варианта, напишите в чат.',
+			await call.message.edit_text('Сколько месяцев/лет вы занимаетесь арбитражем трафика?\nЕсли нет вашего варианта, напишите в чат.',
 				reply_markup=inline.create_choice_user_experience_time_markup())
 
 		await state.set_state(RegUserGroup.experience_time)
@@ -100,10 +95,8 @@ async def set_experience_status(call: CallbackQuery, state: FSMContext):
 
 	await state.update_data(experience_time=None)
 
-	await call.message.delete()
-
 	async with ChatActionSender.typing(bot=bot, chat_id=call.message.chat.id):
-		await call.message.answer('Вы подключены к партнерке 1 Win?',
+		await call.message.edit_text('Вы подключены к партнерке 1 Win?',
 			reply_markup=inline.create_referal_connection_markup())
 
 	await state.set_state(RegUserGroup.referal_status)
@@ -111,7 +104,6 @@ async def set_experience_status(call: CallbackQuery, state: FSMContext):
 
 @register_router.callback_query(F.data.startswith('set_experience_times'), RegUserGroup.experience_time)
 async def set_experience_time(call: CallbackQuery, state: FSMContext):
-	await call.message.delete()
 	if call.data.startswith('set_experience_times_'):
 		if call.data == 'set_experience_times_more':
 			await state.update_data(experience_time='Больше')
@@ -129,7 +121,7 @@ async def set_experience_time(call: CallbackQuery, state: FSMContext):
 			await state.update_data(experience_time='2 года')
 
 		async with ChatActionSender.typing(bot=bot, chat_id=call.message.chat.id):
-			await call.message.answer('Вы подключены к партнерке 1 Win?',
+			await call.message.edit_text('Вы подключены к партнерке 1 Win?',
 				reply_markup=inline.create_referal_connection_markup())
 		
 		await state.set_state(RegUserGroup.referal_status)
@@ -140,7 +132,7 @@ async def set_experience_time_from_message(message: Message, state: FSMContext):
 	await state.update_data(experience_time=message.text)
 
 	async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
-		await message.answer('Вы подключены к партнерке 1 Win?',
+		await message.edit_text('Вы подключены к партнерке 1 Win?',
 			reply_markup=inline.create_referal_connection_markup())
 
 	await state.set_state(RegUserGroup.referal_status)
@@ -148,11 +140,10 @@ async def set_experience_time_from_message(message: Message, state: FSMContext):
 
 @register_router.callback_query(F.data.startswith('referal_status'), RegUserGroup.referal_status)
 async def set_referal_status_callback(call: CallbackQuery, state: FSMContext):
-	await call.message.delete()
 	await state.update_data(referal_status=True if F.data == 'referal_status_have' else False)
 
 	async with ChatActionSender.typing(bot=bot, chat_id=call.message.chat.id):
-		await call.message.answer('Что такое УБТ (трафик)?\n\nНапишите что это.')
+		await call.message.edit_text('Что такое УБТ (трафик)?\n\nНапишите что это.')
 
 	await state.set_state(RegUserGroup.ubt_is)
 
@@ -249,6 +240,5 @@ async def handle_contact(message: Message, state: FSMContext):
 
 @register_router.callback_query(F.data == 'send_request')
 async def send_request_callback(call: CallbackQuery):
-	await call.message.delete()
 	# await call.message.answer('✅ Ваша заявка успешно отправлена. Ожидайте подтверждения от администрации', reply_markup=ReplyKeyboardRemove())
-	await call.message.answer('✅ Администратор принял вашу заявку ✅', reply_markup=inline.get_show_menu_markup())
+	await call.message.edit_text('✅ Администратор принял вашу заявку ✅', reply_markup=inline.get_show_menu_markup())

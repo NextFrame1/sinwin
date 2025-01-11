@@ -22,6 +22,34 @@ def create_main_menu_markup():
 	return builder.as_markup()
 
 
+def create_adminpanel_markup():
+	builder = InlineKeyboardBuilder()
+	builder.row(InlineKeyboardButton(text='Подключить Суб Партнерство', callback_data="admin_connect_subpartner"))
+	builder.row(InlineKeyboardButton(text='Топ воркеров', callback_data="admin_top_workers"))
+	builder.row(InlineKeyboardButton(text='Промокоды', callback_data="admin_promocodes"))
+	builder.row(InlineKeyboardButton(text='Статистика', callback_data="admin_statistics"))
+	builder.row(InlineKeyboardButton(text='Информация по человеку', callback_data="admin_info_by_user"))
+	builder.row(InlineKeyboardButton(text='Все партнеры Sin Win', callback_data="admin_all_partners_1win"))
+	builder.row(InlineKeyboardButton(text='Общие настройки', callback_data="admin_main_settings"))
+	builder.row(InlineKeyboardButton(text='Изменить меню бота', callback_data="admin_change_bot_menu"))
+	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='showmenu'))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_status_markup():
+	builder = InlineKeyboardBuilder()
+	builder.row(InlineKeyboardButton(text='📊 Уровни', callback_data="status_levels"))
+	builder.row(InlineKeyboardButton(text='👨‍🦱 Поддержка', url='https://t.me/HelpSinWin'))
+	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='showmenu'))
+
+	builder.adjust(2)
+
+	return builder.as_markup()
+
+
 def create_referals_markup():
 	builder = InlineKeyboardBuilder()
 	builder.row(InlineKeyboardButton(text='👪️ Мои рефералы', callback_data="my_referals"))
@@ -54,11 +82,14 @@ def create_record_creo_markup():
 	return builder.as_markup()
 
 
-def create_achievements_markup():
+def create_achievements_markup(alerts: bool):
 	builder = InlineKeyboardBuilder()
 	builder.row(InlineKeyboardButton(text='🔄 Обновить', callback_data='reload_achievs'))
 	builder.row(InlineKeyboardButton(text='🏆️ Мои достижения', callback_data='my_achievs'))
-	builder.row(InlineKeyboardButton(text='❌ Выключить уведомления', callback_data='achievements_false'))
+	if alerts:
+		builder.row(InlineKeyboardButton(text='❌ Выключить уведомления', callback_data='achievements_false'))
+	else:
+		builder.row(InlineKeyboardButton(text='✅ Включить уведомления', callback_data='achievements_false'))
 	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='showmenu'))
 
 	builder.adjust(1)
