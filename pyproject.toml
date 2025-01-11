@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "sinwin"
+version = "0.1.0"
+description = ""
+authors = ["alexeev-prog <alexeev.dev@mail.ru>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pytz = "^2024.2"
+hermes-langlib = "^0.1.1"
+aiogram = "^3.17.0"
+rich = "^13.9.4"
+configparser = "^7.1.0"
+loguru = "^0.7.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
