@@ -59,8 +59,8 @@ async def cmd_start(message: Message):
 
 @register_router.callback_query(F.data == "submit_reg_request")
 async def accept_submitted_reg_request_callback(call: CallbackQuery, state: FSMContext):
-	async with ChatActionSender.typing(bot=bot, chat_id=call.message.chat.id):
-		await call.message.edit_text('Напишите Ваше имя и возраст в формате "Имя Возраст" (пример: Иван 22):')
+	
+	await call.message.edit_text('Напишите Ваше имя и возраст в формате "Имя Возраст" (пример: Иван 22):')
 
 	await state.set_state(RegUserGroup.name)
 
@@ -86,8 +86,8 @@ async def capture_user_name(message: Message, state: FSMContext):
 async def set_experience_status(call: CallbackQuery, state: FSMContext):
 	await state.update_data(experience_status='Нет/немного' if call.data.startswith('set_experience_time_no') else 'Да')
 	if call.data == 'set_experience_time':
-		async with ChatActionSender.typing(bot=bot, chat_id=call.message.chat.id):
-			await call.message.edit_text('Сколько месяцев/лет вы занимаетесь арбитражем трафика?\nЕсли нет вашего варианта, напишите в чат.',
+		
+		await call.message.edit_text('Сколько месяцев/лет вы занимаетесь арбитражем трафика?\nЕсли нет вашего варианта, напишите в чат.',
 				reply_markup=inline.create_choice_user_experience_time_markup())
 
 		await state.set_state(RegUserGroup.experience_time)
@@ -95,8 +95,8 @@ async def set_experience_status(call: CallbackQuery, state: FSMContext):
 
 	await state.update_data(experience_time=None)
 
-	async with ChatActionSender.typing(bot=bot, chat_id=call.message.chat.id):
-		await call.message.edit_text('Вы подключены к партнерке 1 Win?',
+	
+	await call.message.edit_text('Вы подключены к партнерке 1 Win?',
 			reply_markup=inline.create_referal_connection_markup())
 
 	await state.set_state(RegUserGroup.referal_status)
@@ -120,7 +120,7 @@ async def set_experience_time(call: CallbackQuery, state: FSMContext):
 		elif call.data == 'set_experience_times_2year':
 			await state.update_data(experience_time='2 года')
 
-		async with ChatActionSender.typing(bot=bot, chat_id=call.message.chat.id):
+		
 			await call.message.edit_text('Вы подключены к партнерке 1 Win?',
 				reply_markup=inline.create_referal_connection_markup())
 		
@@ -142,8 +142,8 @@ async def set_experience_time_from_message(message: Message, state: FSMContext):
 async def set_referal_status_callback(call: CallbackQuery, state: FSMContext):
 	await state.update_data(referal_status=True if F.data == 'referal_status_have' else False)
 
-	async with ChatActionSender.typing(bot=bot, chat_id=call.message.chat.id):
-		await call.message.edit_text('Что такое УБТ (трафик)?\n\nНапишите что это.')
+	
+	await call.message.edit_text('Что такое УБТ (трафик)?\n\nНапишите что это.')
 
 	await state.set_state(RegUserGroup.ubt_is)
 
@@ -164,8 +164,8 @@ async def set_ubt_status_callback(call: CallbackQuery, state: FSMContext):
 	await call.message.delete()
 	await state.update_data(ubt_status='Нет/немного' if call.data.startswith('use_ubt_no') else 'Да')
 
-	async with ChatActionSender.typing(bot=bot, chat_id=call.message.chat.id):
-		await call.message.answer('Из какого вы города?')
+	
+	await call.message.answer('Из какого вы города?')
 
 	await state.set_state(RegUserGroup.city)
 

@@ -290,8 +290,8 @@ async def withdraw_card_callback(call: CallbackQuery, state: FSMContext):
 	photo = get_file("main/card.jpg")
 	message = '💰️ Баланс: 0 RUB\n💳️ Visa или MasterCard\nЛимит одного вывода: 2 000 ₽ - 50 000 ₽\n\n<code>Вывод средств на карты банков РФ может происходить с задержкой. Чтобы совершать выводы максимально быстро, рекомендуем использовать карту Сбера.</code>\n\n✍️ Введите сумму которую Вы хотите вывести.'
 	
-	async with ChatActionSender.typing(bot=bot, chat_id=call.message.chat.id):
-		await call.message.edit_media(
+	
+	await call.message.edit_media(
 			InputMediaPhoto(media=photo, caption=message, parse_mode=ParseMode.HTML),
 			reply_markup=inline.create_back_markup('withdraw'),
 		)
@@ -313,8 +313,8 @@ async def withdraw_steam_callback(call: CallbackQuery, state: FSMContext):
 	photo = get_file("main/steam.jpg")
 	message = '💰️ Баланс: 0 RUB\nВывод на аккаунт Steam\nЛимит одного вывода: от 2 000 ₽ до 12 000 ₽\n\n✍️ Введите сумму которую Вы хотите вывести.'
 	
-	async with ChatActionSender.typing(bot=bot, chat_id=call.message.chat.id):
-		await call.message.edit_media(
+	
+	await call.message.edit_media(
 			InputMediaPhoto(media=photo, caption=message, parse_mode=ParseMode.HTML),
 			reply_markup=inline.create_back_markup('withdraw'),
 		)
