@@ -5,10 +5,10 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery, ContentType, ReplyKeyboardRemove
-from aiogram.utils.chat_action import ChatActionSender
 import app.keyboards.inline as inline
+import app.keyboards.menu_inline as inlinem
 import app.keyboards.reply as reply
-from app.loader import bot
+from app.database.test import users
 
 register_router = Router()
 
@@ -53,8 +53,15 @@ async def cmd_start(message: Message):
 	:param		message:  The message
 	:type		message:  Message
 	"""
+	if users.get(message.chat.id) is not None:
+		if users.get(message.chat.id).get('final', False):
+			await message.answer('🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!', parse_mode=ParseMode.HTML,
+							reply_markup=inlinem.create_main_menu_markup())
+			return
+
 	await message.answer('Вы не зарегистрированы в боте, для продолэения Вам необходимо подать заявку. Это займет менее 5 минут.',
-						parse_mode=ParseMode.HTML, reply_markup=inline.create_start_markup())
+							parse_mode=ParseMode.HTML, reply_markup=inline.create_start_markup())
+	users[message.chat.id] = {'final': False}
 
 
 @register_router.callback_query(F.data == "submit_reg_request")
@@ -68,25 +75,22 @@ async def accept_submitted_reg_request_callback(call: CallbackQuery, state: FSMC
 @register_router.message(F.text, RegUserGroup.name)
 async def capture_user_name(message: Message, state: FSMContext):
 	if not validate_name(message.text):
-		async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
-			await message.answer('Введите в требуемом формате: Имя Возраст\nПример: Иван 22')
+		await message.answer('Введите в требуемом формате: Имя Возраст\nПример: Иван 22')
 		
 		await state.set_state(RegUserGroup.name)
 	else:
 		await state.update_data(name=message.text)
 
-		async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
-			await message.answer('Есть ли у вас опыт в арбитраже траффика?',
+		await message.answer('Есть ли у вас опыт в арбитраже траффика?',
 				reply_markup=inline.create_choice_user_experience_markup())
 
 		await state.set_state(RegUserGroup.experience_status)
 
 
-@register_router.callback_query(F.data.startswith('set_experience_time'), RegUserGroup.experience_status)
+@register_router.callback_query(F.data.startswith('1set_experience_time'), RegUserGroup.experience_status)
 async def set_experience_status(call: CallbackQuery, state: FSMContext):
-	await state.update_data(experience_status='Нет/немного' if call.data.startswith('set_experience_time_no') else 'Да')
-	if call.data == 'set_experience_time':
-		
+	await state.update_data(experience_status='Нет/немного' if call.data.startswith('1set_experience_time_no') else 'Да')
+	if call.data == '1set_experience_time':
 		await call.message.edit_text('Сколько месяцев/лет вы занимаетесь арбитражем трафика?\nЕсли нет вашего варианта, напишите в чат.',
 				reply_markup=inline.create_choice_user_experience_time_markup())
 
@@ -94,7 +98,6 @@ async def set_experience_status(call: CallbackQuery, state: FSMContext):
 		return
 
 	await state.update_data(experience_time=None)
-
 	
 	await call.message.edit_text('Вы подключены к партнерке 1 Win?',
 			reply_markup=inline.create_referal_connection_markup())
@@ -102,7 +105,7 @@ async def set_experience_status(call: CallbackQuery, state: FSMContext):
 	await state.set_state(RegUserGroup.referal_status)
 
 
-@register_router.callback_query(F.data.startswith('set_experience_times'), RegUserGroup.experience_time)
+@register_router.callback_query(F.data.startswith('set_experience_times_'), RegUserGroup.experience_time)
 async def set_experience_time(call: CallbackQuery, state: FSMContext):
 	if call.data.startswith('set_experience_times_'):
 		if call.data == 'set_experience_times_more':
@@ -121,8 +124,8 @@ async def set_experience_time(call: CallbackQuery, state: FSMContext):
 			await state.update_data(experience_time='2 года')
 
 		
-			await call.message.edit_text('Вы подключены к партнерке 1 Win?',
-				reply_markup=inline.create_referal_connection_markup())
+		await call.message.edit_text('Вы подключены к партнерке 1 Win?',
+			reply_markup=inline.create_referal_connection_markup())
 		
 		await state.set_state(RegUserGroup.referal_status)
 
@@ -131,8 +134,7 @@ async def set_experience_time(call: CallbackQuery, state: FSMContext):
 async def set_experience_time_from_message(message: Message, state: FSMContext):
 	await state.update_data(experience_time=message.text)
 
-	async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
-		await message.edit_text('Вы подключены к партнерке 1 Win?',
+	await message.edit_text('Вы подключены к партнерке 1 Win?',
 			reply_markup=inline.create_referal_connection_markup())
 
 	await state.set_state(RegUserGroup.referal_status)
@@ -141,7 +143,6 @@ async def set_experience_time_from_message(message: Message, state: FSMContext):
 @register_router.callback_query(F.data.startswith('referal_status'), RegUserGroup.referal_status)
 async def set_referal_status_callback(call: CallbackQuery, state: FSMContext):
 	await state.update_data(referal_status=True if F.data == 'referal_status_have' else False)
-
 	
 	await call.message.edit_text('Что такое УБТ (трафик)?\n\nНапишите что это.')
 
@@ -151,9 +152,8 @@ async def set_referal_status_callback(call: CallbackQuery, state: FSMContext):
 @register_router.message(F.text, RegUserGroup.ubt_is)
 async def set_user_ubt_definition_from_message(message: Message, state: FSMContext):
 	await state.update_data(ubt_is=message.text)
-
-	async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
-		await message.answer('Работали ли вы с УБТ (трафиком)?',
+	
+	await message.answer('Работали ли вы с УБТ (трафиком)?',
 			reply_markup=inline.create_ubt_markup())
 
 	await state.set_state(RegUserGroup.ubt_status)
@@ -163,7 +163,6 @@ async def set_user_ubt_definition_from_message(message: Message, state: FSMConte
 async def set_ubt_status_callback(call: CallbackQuery, state: FSMContext):
 	await call.message.delete()
 	await state.update_data(ubt_status='Нет/немного' if call.data.startswith('use_ubt_no') else 'Да')
-
 	
 	await call.message.answer('Из какого вы города?')
 
@@ -174,8 +173,7 @@ async def set_ubt_status_callback(call: CallbackQuery, state: FSMContext):
 async def set_city_from_message(message: Message, state: FSMContext):
 	await state.update_data(city=message.text)
 
-	async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
-		await message.answer('Откуда вы узнали о нас?')
+	await message.answer('Откуда вы узнали о нас?')
 
 	await state.set_state(RegUserGroup.you_source)
 
@@ -184,8 +182,7 @@ async def set_city_from_message(message: Message, state: FSMContext):
 async def set_source_from_message(message: Message, state: FSMContext):
 	await state.update_data(you_source=message.text)
 
-	async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
-		await message.answer('💬 Расскажите нам о себе. Пожалуйста, поделитесь вашими мотивами для присоединения к нашей команде и расскажите немного о своем опыте, достижениях и мотивации.')
+	await message.answer('💬 Расскажите нам о себе. Пожалуйста, поделитесь вашими мотивами для присоединения к нашей команде и расскажите немного о своем опыте, достижениях и мотивации.')
 
 	await state.set_state(RegUserGroup.about_you)
 
@@ -194,8 +191,7 @@ async def set_source_from_message(message: Message, state: FSMContext):
 async def set_about_you_from_message(message: Message, state: FSMContext):
 	await state.update_data(about_you=message.text)
 
-	async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
-		await message.answer('Откуда вы будете привлекать трафик?')
+	await message.answer('Откуда вы будете привлекать трафик?')
 
 	await state.set_state(RegUserGroup.source_traffic)
 
@@ -203,9 +199,8 @@ async def set_about_you_from_message(message: Message, state: FSMContext):
 @register_router.message(F.text, RegUserGroup.source_traffic)
 async def set_source_traffic_from_message(message: Message, state: FSMContext):
 	await state.update_data(source_traffic=message.text)
-
-	async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
-		await message.answer('Поделитесь номером.\n\n<i>Он останется конфиденциальным и будет использован только в чрезвычайных ситуациях. Ваш номер никому не передается.</i>', 
+	
+	await message.answer('Поделитесь номером.\n\n<i>Он останется конфиденциальным и будет использован только в чрезвычайных ситуациях. Ваш номер никому не передается.</i>', 
 							parse_mode=ParseMode.HTML,
 							reply_markup=reply.create_get_contact_markup())
 
@@ -240,5 +235,6 @@ async def handle_contact(message: Message, state: FSMContext):
 
 @register_router.callback_query(F.data == 'send_request')
 async def send_request_callback(call: CallbackQuery):
+	users[call.message.chat.id] = {'final': True}
 	# await call.message.answer('✅ Ваша заявка успешно отправлена. Ожидайте подтверждения от администрации', reply_markup=ReplyKeyboardRemove())
 	await call.message.edit_text('✅ Администратор принял вашу заявку ✅', reply_markup=inline.get_show_menu_markup())

@@ -15,9 +15,9 @@ def create_start_markup():
 def create_choice_user_experience_markup():
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text='Да', callback_data='set_experience_time'))
-	builder.row(InlineKeyboardButton(text='Нет', callback_data='set_experience_time_no'))
-	builder.row(InlineKeyboardButton(text='Немного', callback_data='set_experience_time_none'))
+	builder.row(InlineKeyboardButton(text='Да', callback_data='1set_experience_time'))
+	builder.row(InlineKeyboardButton(text='Нет', callback_data='1set_experience_time_no'))
+	builder.row(InlineKeyboardButton(text='Немного', callback_data='1set_experience_time_none'))
 
 	builder.adjust(2)
 

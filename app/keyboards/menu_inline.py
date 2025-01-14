@@ -61,15 +61,13 @@ def create_referals_markup():
 
 
 def create_about_us_markup():
-	builder = InlineKeyboardBuilder()
-	builder.row(InlineKeyboardButton(text='👨‍🦱 Поддержка', url='https://t.me/HelpSinWin'))
-	builder.row(InlineKeyboardButton(text='💎 Канал', url='https://t.me/+W8_28FXJWXIxZTgy'))
-	builder.row(InlineKeyboardButton(text='💬 Предложить улучшение', url='https://t.me/HelpSinWin'))
-	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='showmenu'))
+	keyboard = [
+		[InlineKeyboardButton(text='👨‍🦱 Поддержка', url='https://t.me/HelpSinWin'), InlineKeyboardButton(text='💎 Канал', url='https://t.me/+W8_28FXJWXIxZTgy')],
+		[InlineKeyboardButton(text='💬 Предложить улучшение', url='https://t.me/HelpSinWin')],
+		[InlineKeyboardButton(text='🔙 Назад', callback_data='showmenu')]
+	]
 
-	builder.adjust(1)
-
-	return builder.as_markup()
+	return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
 def create_record_creo_markup():
@@ -107,14 +105,36 @@ def create_work_markup():
 	return builder.as_markup()
 
 
+def create_online_statistics_markup():
+	builder = InlineKeyboardBuilder()
 
-def create_statistics_bot_menu():
+	builder.row(InlineKeyboardButton(text='Подключиться', url='https://t.me/testusername'))
+	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='statistics'))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_mines_statistics_menu():
+	builder = InlineKeyboardBuilder()
+
+	builder.row(InlineKeyboardButton(text='За другой период', callback_data='mines_statistics_choose_period'))
+	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='statistics'))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_statistics_bot_menu(menu: str = 'showmenu'):
 	builder = InlineKeyboardBuilder()
 	builder.row(InlineKeyboardButton(text='💣️ Mines', callback_data='statistics_mines'))
 	builder.row(InlineKeyboardButton(text='🚀 Lucky Jet', callback_data='statistics_luckyjet'))
 	builder.row(InlineKeyboardButton(text='🚗 Speed Cash', callback_data='statistics_speedcash'))
 	builder.row(InlineKeyboardButton(text='🎲 Coin Flip', callback_data='statistics_coinflip'))
-	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='showmenu'))
+	builder.row(InlineKeyboardButton(text='Статистика онлайн', callback_data='statistics_online'))
+	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data=menu))
 
 	builder.adjust(1)
 
