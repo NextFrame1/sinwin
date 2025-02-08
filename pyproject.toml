@@ -13,7 +13,14 @@ aiogram = "^3.17.0"
 rich = "^13.9.4"
 configparser = "^7.1.0"
 loguru = "^0.7.3"
+aiohttp = "^3.11.12"
+httpx = "^0.28.1"
+aiocache = "^0.12.3"
+redis = "^5.2.1"
 
+
+[tool.poetry.group.dev.dependencies]
+black = "^25.1.0"
 
 [build-system]
 requires = ["poetry-core"]

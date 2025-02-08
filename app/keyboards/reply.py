@@ -22,6 +22,6 @@ def create_main_rk():
 def create_get_contact_markup():
 	builder = ReplyKeyboardBuilder()
 
-	builder.button(text='Поделиться номером', request_contact=True)
+	builder.button(text="Поделиться номером", request_contact=True)
 
 	return builder.as_markup(resize_keyboard=True)

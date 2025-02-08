@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import json
 from configparser import ConfigParser
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Tuple, Union
 
@@ -16,7 +16,15 @@ class Secrets:
 	"""
 
 	TOKEN: str
-	ADMINS_IDS: list
+	ADMINS_IDS: list = field(default_factory=list)
+	SECRET_KEY: str = "Ant1ehbiPu"
+	URL: str = "127.0.0.1:8000"
+
+
+@dataclass
+class RedisConfig:
+	host: str
+	port: int
 
 
 @dataclass
@@ -39,6 +47,7 @@ class Config:
 
 	database: Database
 	secrets: Secrets
+	redis: RedisConfig
 	ALL_MEDIA_DIR: str
 	SINWIN_DATA: str
 
@@ -90,7 +99,7 @@ def load_config(config: dict) -> Tuple[Config, Union[Database, Secrets]]:
 
 	return Config(
 		ALL_MEDIA_DIR=config["DATA"]["ALL_MEDIA_DIR"],
-		SINWIN_DATA=config['DATA']['SINWIN_DATA'],
+		SINWIN_DATA=config["DATA"]["SINWIN_DATA"],
 		database=Database(
 			NAME=config["DATABASE"]["NAME"],
 			USER=config["DATABASE"]["USER"],
@@ -98,9 +107,11 @@ def load_config(config: dict) -> Tuple[Config, Union[Database, Secrets]]:
 			HOST=config["DATABASE"]["HOST"],
 		),
 		secrets=Secrets(
+			URL=config["SECRETS"]["URL"],
 			TOKEN=config["SECRETS"]["TOKEN"],
 			ADMINS_IDS=[
 				int(admin_id) for admin_id in config["SECRETS"]["ADMINS_IDS"].split(" ")
 			],
 		),
+		redis=RedisConfig(host=config["REDIS"]["host"], port=config["REDIS"]["port"]),
 	)

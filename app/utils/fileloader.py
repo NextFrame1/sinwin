@@ -35,6 +35,4 @@ def get_localized_image(filename: str) -> str:
 	:rtype:		str
 	"""
 
-	return os.path.join(
-		config.SINWIN_DATA, filename
-	)
+	return os.path.join(config.SINWIN_DATA, filename)

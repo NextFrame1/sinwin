@@ -4,6 +4,7 @@ import platform
 from loguru import logger
 
 from app import handlers, utils
+from app.api import APIRequest
 from app.loader import bot, config, dp
 
 
@@ -19,6 +20,11 @@ async def on_startup() -> None:
 
 
 async def main():
+	conn_ok = await APIRequest.get("/base/info")
+	if not conn_ok:
+		logger.error("Fatal error: API dont connected")
+		exit()
+
 	utils.setup_logger("INFO", ["sqlalchemy.engine", "aiogram.bot.api"])
 
 	dp.include_routers(handlers.register_router)
