@@ -9,7 +9,7 @@ COPY locales ./
 COPY resources ./
 COPY . .
 
-RUN pip install --no-cache-dir aiogram configparser hermes-langlib rich loguru pytz
+RUN pip install --no-cache-dir aiocache aiohttp redis aiogram configparser hermes-langlib rich loguru pytz
 
 CMD ["python3", "-m", "app"]
 

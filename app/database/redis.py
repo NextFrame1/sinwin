@@ -6,8 +6,8 @@ from loguru import logger
 from app.loader import config
 
 
-def create_cache(
-	name: str, namespace: str = "main", subspace: str = None
+async def create_cache(
+	namespace: str = "main"
 ) -> Cache.REDIS:
 	"""
 	Gets the cache.
@@ -24,11 +24,6 @@ def create_cache(
 
 	:raises		HTTPException:	error connect to redis cache server
 	"""
-	if namespace and subspace:
-		name = f"{namespace}:{subspace}:{name}"
-	elif namespace and subspace is None:
-		name = f"{namespace}:{name}"
-
 	try:
 		cache = Cache.REDIS(
 			endpoint=config.redis.host,
@@ -39,10 +34,10 @@ def create_cache(
 		logger.error(f"Error when get_cache: {ex}")
 		return None, None
 
-	return cache, name
+	return cache
 
 
-async def get_cache(name: str, namespace: str = "main", subspace: str = None) -> Any:
+async def get_cache(name: str, namespace: str = "main") -> Any:
 	"""
 	Gets the cached value by name.
 
@@ -56,14 +51,30 @@ async def get_cache(name: str, namespace: str = "main", subspace: str = None) ->
 	:returns:	The cached value by name.
 	:rtype:		Any
 	"""
-	cache, cachename = create_cache(name, namespace, subspace)
-	value = await cache.get(cachename)
+	try:
+		cachename = f'{namespace}:{name}'
+		cache = await create_cache(namespace)
+		value = await cache.get(cachename)
+	except Exception as ex:
+		logger.error(f'Exception thrown at get_cache ({cachename}): {ex}')
+		return {}
 
 	return value
 
 
 async def set_cache(
-	data: Any, name: str, namespace: str = "main", subspace: str = None
+	data: Any, name: str, namespace: str = "main"
 ):
-	cache, cache_key = create_cache(name, namespace, subspace)
-	await cache.set(cache_key, data, ttl=-1)
+	"""
+	Sets the cache.
+
+	:param      data:       The data
+	:type       data:       Any
+	:param      name:       The name
+	:type       name:       str
+	:param      namespace:  The namespace
+	:type       namespace:  str
+	"""
+	cache_key = f'{namespace}:{name}'
+	cache = await create_cache(namespace)
+	await cache.set(cache_key, data)

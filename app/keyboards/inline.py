@@ -2,6 +2,41 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
+
+def choice_new_answers():
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(
+			text="💼 Подать новую заявку", callback_data="submit_reg_request"
+		)
+	)
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def get_approve_menu(tid: int):
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(
+			text="✅ Подтвердить", callback_data=f"approve_{tid}"
+		)
+	)
+
+	builder.row(
+		InlineKeyboardButton(
+			text="❌ Отклонить", callback_data=f"disapprove_{tid}"
+		)
+	)
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
 def create_start_markup():
 	builder = InlineKeyboardBuilder()
 
@@ -95,7 +130,7 @@ def create_final_req():
 def get_show_menu_markup():
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text="💻️ Показать меню", callback_data="showmenu"))
+	builder.row(InlineKeyboardButton(text="💻️ Показать меню", callback_data="showmenu_after_reg"))
 
 	builder.adjust(1)
 

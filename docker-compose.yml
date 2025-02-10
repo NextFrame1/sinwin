@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+    sinwin:
+        build: .
+        ports:
+         - "10011:10011"
+        depends_on:
+         - redis
+     redis:
+        image: "redis:latest"
+        command: ["redis-server", "--bind", "redis", "--port", "6379"]

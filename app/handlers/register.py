@@ -5,15 +5,17 @@ from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, ContentType, Message
+from aiogram.types import CallbackQuery, ContentType, Message, ReplyKeyboardRemove
 from loguru import logger
 
 import app.keyboards.inline as inline
 import app.keyboards.menu_inline as inlinem
 import app.keyboards.reply as reply
 from app.api import APIRequest
+from app.loader import config, bot
 from app.database.redis import set_cache
 from app.database.test import users
+from datetime import datetime
 
 register_router = Router()
 
@@ -58,8 +60,14 @@ async def cmd_start(message: Message):
 	:param		message:  The message
 	:type		message:  Message
 	"""
-	if users.get(message.chat.id) is not None:
-		if users.get(message.chat.id).get("final", False):
+	partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": message.from_user.id}})
+	partner = None if len(partners[0]['partners']) < 1 else partners[0]['partners'][-1]
+	users[message.from_user.id] = {"final": False, "count": 0}
+
+	print(partner)
+
+	if users.get(message.from_user.id) is not None or partner is not None or message.from_user.id in config.secrets.ADMINS_IDS:
+		if users.get(message.from_user.id, {}).get("final", False) or partner is not None:
 			await message.answer(
 				"🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!",
 				parse_mode=ParseMode.HTML,
@@ -68,15 +76,17 @@ async def cmd_start(message: Message):
 			return
 
 	await message.answer(
-		"Вы не зарегистрированы в боте, для продолэения Вам необходимо подать заявку. Это займет менее 5 минут.",
+		"Вы не зарегистрированы в боте, для продолжения Вам необходимо подать заявку. Это займет менее 5 минут.",
 		parse_mode=ParseMode.HTML,
 		reply_markup=inline.create_start_markup(),
 	)
-	users[message.chat.id] = {"final": False}
 
 
 @register_router.callback_query(F.data == "submit_reg_request")
 async def accept_submitted_reg_request_callback(call: CallbackQuery, state: FSMContext):
+	count = users.get(call.from_user.id, {}).get('count', 1)
+	users[call.from_user.id]['count'] = 1 + count
+
 	await call.message.edit_text(
 		'Напишите Ваше имя и возраст в формате "Имя Возраст" (пример: Иван 22):'
 	)
@@ -285,45 +295,135 @@ async def handle_contact(message: Message, state: FSMContext):
 
 	await message.answer(messages, reply_markup=inline.create_final_req())
 
-	data = {
-		"number_phone": str(data.get("number_phone")),
-		"fullname": " ".join(data.get("name").split(" ")[:-1]),
-		"arbitration_experience": 1 if data.get("experience_status") == "Да" else 0,
-		"is_referal": 0,
-		"experience_time": (
-			data.get("experience_time")
-			if data.get("experience_status") == "Да"
-			else "Отстутствует"
-		),
-		"age": int("".join(data.get("name").split(" ")[1:])),
-		"tg_id": str(message.from_user.id),
-	}
-
-	users[message.chat.id] = {"final": False, "data": data}
+	users[message.from_user.id] = {"final": False, "data": data, "count": users[message.from_user.id].get('count', 1)}
 
 	await state.clear()
 
 
+@register_router.callback_query(F.data.startswith('approve_'))
+async def approve_user(call: CallbackQuery):
+	await call.answer()
+	tid = int(call.data.replace('approve_', ''))
+	try:
+		if users.get(tid, {}).get('final', False):
+			return
+
+		users_data = users.get(tid, {})
+		data = users_data.get('data', {})
+
+		data_creation = {
+			"number_phone": str(data.get("number_phone")),
+			"fullname": " ".join(data.get("name").split(" ")[:-1]),
+			"arbitration_experience": 1 if data.get("experience_status") == "Да" else 0,
+			"is_referal": 0,
+			"experience_time": (
+				data.get("experience_time")
+				if data.get("experience_status") == "Да"
+				else "Отстутствует"
+			),
+			"age": int("".join(data.get("name").split(" ")[1:])),
+			"tg_id": str(tid),
+			"approved": 1
+		}
+
+		users[tid]["final"] = True
+		data = users[tid].get("data", {})
+
+		result, status_code = await APIRequest.post("/partner/create", data_creation)
+
+		if not result or status_code != 200:
+			logger.error(
+				f"Error when reg partner (tg_id: {tid}). Result of API: {result}"
+			)
+			await bot.send_message(chat_id=tid, text="❌ Ошибка на стороне нашего сервера при регистрации. Попробуйте позже.")
+			return
+
+		await set_cache(result, tid, "sinwin_partners")
+
+		await bot.send_message(chat_id=tid, text="✅ Администратор принял вашу заявку ✅",
+			reply_markup=inline.get_show_menu_markup(),
+		)
+	except Exception as ex:
+		for admin in config.secrets.ADMINS_IDS:
+			await bot.send_message(chat_id=admin, text=f"❌Ошибка при подтверждении {tid}. Возможно, пользователь уже подтвержден другим админом. Лог: {ex}",
+				reply_markup=inline.get_show_menu_markup(),
+			)
+	else:
+		for admin in config.secrets.ADMINS_IDS:
+			await bot.send_message(chat_id=admin, text=f"✅ <code>{tid}</code> теперь один из нас!",parse_mode=ParseMode.HTML, 
+				reply_markup=inline.get_show_menu_markup(),
+			)
+
+
+@register_router.callback_query(F.data.startswith('disapprove_'))
+async def disapprove_user(call: CallbackQuery):
+	tid = int(call.data.replace('disapprove_', ''))
+	await call.answer()
+
+	partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": str(tid)}})
+	partner = partners[0]['partners']
+
+	if partner:
+		users[call.from_user.id] = users.get(call.from_user.id, {})
+		users[call.from_user.id]['final'] = False
+
+	try:
+		users[call.from_user.id] = users.get(call.from_user.id, {})
+		users[call.from_user.id]['final'] = False
+
+		await bot.send_message(chat_id=tid, text="❌ Администратор отклонил вашу заявку ❌", reply_markup=inline.choice_new_answers())
+	except Exception as ex:
+		for admin in config.secrets.ADMINS_IDS:
+			await bot.send_message(chat_id=admin, text=f"❌Ошибка при отклонении {tid}. Возможно, пользователь уже отклонен другим админом. Лог: {ex}",
+				reply_markup=inline.get_show_menu_markup(),
+			)
+	else:
+		for admin in config.secrets.ADMINS_IDS:
+			await bot.send_message(chat_id=admin, text=f"❌ Заявка <code>{tid}</code> отклонена!",parse_mode=ParseMode.HTML, 
+				reply_markup=inline.get_show_menu_markup(),
+			)
+
+
 @register_router.callback_query(F.data == "send_request")
 async def send_request_callback(call: CallbackQuery):
-	users[call.message.chat.id]["final"] = True
-	data = users[call.message.chat.id].get("data", {})
+	users_data = users.get(call.from_user.id, {})
+	data = users_data.get('data', {})
 
-	result, status_code = await APIRequest.post("/partner/create", data)
+	await call.answer()
 
-	if not result or status_code != 200:
-		logger.error(
-			f"Error when reg partner (tg_id: {call.message.from_user.id}). Result of API: {result}"
-		)
-		await call.message.edit_text(
-			"❌ Ошибка на стороне нашего сервера при регистрации. Попробуйте позже."
-		)
-		return
+	for admin_id in config.secrets.ADMINS_IDS:
+		form = [
+			f"Анкета: {call.from_user.username}",
+			f'Telegram ID: {call.from_user.id}',
+			f'Телефон: <code>{data.get("number_phone")}</code>',
+			'Рефка: {username_ref}, {hash_ref}',
+			f'Попытка регистрации: {users_data.get("count", 1)}',
+			'Пользовался уже ботами: нет\n',
 
-	await set_cache(result, call.message.from_user.id, "sinwin_partners")
+			f'Имя, возраст: {data.get("name")}',
+			f'Город: {data.get("city")}',
+			f'Есть ли у вас опыт в арбитраже трафика: {data.get("experience_status")}',
+		]
 
-	# await call.message.answer('✅ Ваша заявка успешно отправлена. Ожидайте подтверждения от администрации', reply_markup=ReplyKeyboardRemove())
-	await call.message.edit_text(
-		"✅ Администратор принял вашу заявку ✅",
-		reply_markup=inline.get_show_menu_markup(),
-	)
+		if data.get("experience_status") == "Да":
+			form.append(f'Опыт: {data.get("experience_time")}')
+
+		mark = '✅' if data.get("ubt_is").lower() == 'условно бесплатный трафик' or data.get("ubt_is").lower() == 'условно бесплатный' else '❌'
+
+		form += [
+			f'Вы подключены к партнерке 1Win: {"Да" if data.get("referal_status") else "Нет"}',
+			f'{mark} Что такое УБТ трафик: {data.get("ubt_is")}',
+			f'Опыт в УБТ: {data.get("ubt_status")}',
+			f'Источники трафика: {data.get("source_traffic")}',
+			f'Откуда вы узнали о нас: {data.get("you_source")}',
+			f'О себе: {data.get("about_you")}',
+
+			f'\n{datetime.now().strftime("%H:%M %d.%m.%Y")}'
+		]
+
+		await bot.send_message(chat_id=admin_id, text="\n".join(form), parse_mode=ParseMode.HTML, 
+								reply_markup=inline.get_approve_menu(call.from_user.id))
+
+	await call.answer()
+
+	await call.message.answer(text='✅ Ваша заявка успешно отправлена. Ожидайте подтверждения от администрации', reply_markup=ReplyKeyboardRemove())
