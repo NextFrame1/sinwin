@@ -2,6 +2,20 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
+def create_start_markup():
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(
+			text="✍️ Оставить заявку", callback_data="submit_reg_request"
+		)
+	)  # accept_submitted_reg_request_callback
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
 def create_main_menu_markup():
 	builder = InlineKeyboardBuilder()
 

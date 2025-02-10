@@ -19,6 +19,8 @@ from datetime import datetime
 
 register_router = Router()
 
+forms = {}
+
 
 class RegUserGroup(StatesGroup):
 	name = State()
@@ -351,8 +353,19 @@ async def approve_user(call: CallbackQuery):
 	else:
 		for admin in config.secrets.ADMINS_IDS:
 			await bot.send_message(chat_id=admin, text=f"✅ <code>{tid}</code> теперь один из нас!",parse_mode=ParseMode.HTML, 
-				reply_markup=inline.get_show_menu_markup(),
+				reply_markup=inline.view_form(tid),
 			)
+
+
+@register_router.callback_query(F.data.startswith('resend_form_'))
+async def resend_form_user(call: CallbackQuery):
+	await call.answer()
+	tid = int(call.data.replace('resend_form_', ''))
+
+	form = forms.get(tid, [])
+
+	await call.message.answer(text="\n".join(form), parse_mode=ParseMode.HTML, 
+								reply_markup=inline.get_approve_menu(tid))
 
 
 @register_router.callback_query(F.data.startswith('disapprove_'))
@@ -364,12 +377,12 @@ async def disapprove_user(call: CallbackQuery):
 	partner = partners[0]['partners']
 
 	if partner:
-		users[call.from_user.id] = users.get(call.from_user.id, {})
-		users[call.from_user.id]['final'] = False
+		users[tid] = users.get(tid, {})
+		users[tid]['final'] = False
 
 	try:
-		users[call.from_user.id] = users.get(call.from_user.id, {})
-		users[call.from_user.id]['final'] = False
+		users[tid] = users.get(tid, {})
+		users[tid]['final'] = False
 
 		await bot.send_message(chat_id=tid, text="❌ Администратор отклонил вашу заявку ❌", reply_markup=inline.choice_new_answers())
 	except Exception as ex:
@@ -380,7 +393,7 @@ async def disapprove_user(call: CallbackQuery):
 	else:
 		for admin in config.secrets.ADMINS_IDS:
 			await bot.send_message(chat_id=admin, text=f"❌ Заявка <code>{tid}</code> отклонена!",parse_mode=ParseMode.HTML, 
-				reply_markup=inline.get_show_menu_markup(),
+				reply_markup=inline.view_form(tid),
 			)
 
 
@@ -421,9 +434,9 @@ async def send_request_callback(call: CallbackQuery):
 			f'\n{datetime.now().strftime("%H:%M %d.%m.%Y")}'
 		]
 
+		forms[call.from_user.id] = form
+
 		await bot.send_message(chat_id=admin_id, text="\n".join(form), parse_mode=ParseMode.HTML, 
 								reply_markup=inline.get_approve_menu(call.from_user.id))
-
-	await call.answer()
 
 	await call.message.answer(text='✅ Ваша заявка успешно отправлена. Ожидайте подтверждения от администрации', reply_markup=ReplyKeyboardRemove())

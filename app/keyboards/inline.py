@@ -2,6 +2,19 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
+def view_form(userid):
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(
+			text="Изменить", callback_data=f"resend_form_{userid}"
+		)
+	)
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
 
 def choice_new_answers():
 	builder = InlineKeyboardBuilder()

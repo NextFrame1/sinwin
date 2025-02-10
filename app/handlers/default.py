@@ -33,7 +33,7 @@ class PromoGroup(StatesGroup):
 	promocode = State()
 
 
-@default_router.callback_query(only_confirmed, F.data == "statistics")
+@default_router.callback_query(F.data == "statistics", only_confirmed)
 async def statistics_callback(call: CallbackQuery):
 	messages = [
 		"<b>СТАТИСТИКА ПО ВСЕМ БОТАМ</b>",
@@ -60,7 +60,7 @@ async def statistics_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data == "statistics_mines")
+@default_router.callback_query(F.data == "statistics_mines", only_confirmed)
 async def statistics_mines_callback(call: CallbackQuery):
 	messages = [
 		"<b>💣️СТАТИСТИКА ПО MINES</b>",
@@ -91,7 +91,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data.startswith("referal"))
+@default_router.callback_query(F.data.startswith("referal"), only_confirmed)
 async def referal_callback(call: CallbackQuery):
 	messages = [
 		"Помогите своим друзьям стать частью нашей команды и начните зарабатывать вместе!\n",
@@ -110,7 +110,7 @@ async def referal_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data.startswith("about_us"))
+@default_router.callback_query(F.data.startswith("about_us"), only_confirmed)
 async def about_uscallback(call: CallbackQuery):
 	messages = [
 		'Следите за нашими новостями и обновлениями на <a href="https://t.me/+W8_28FXJWXIxZTgy">канале SinWin</a>. Там вы найдете свежие новости и важные объявления для нашей команды.\n',
@@ -125,17 +125,17 @@ async def about_uscallback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data.startswith("my_referals"))
+@default_router.callback_query(F.data.startswith("my_referals"), only_confirmed)
 async def referal_answer_callback(call: CallbackQuery):
 	await call.answer("У вас нет рефералов", show_alert=True)
 
 
-@default_router.callback_query(only_confirmed, F.data.startswith("reload_achievs"))
+@default_router.callback_query(F.data.startswith("reload_achievs"), only_confirmed)
 async def reload_achievs_callback(call: CallbackQuery):
 	await call.answer("Вы не выполнили не одного достижения", show_alert=True)
 
 
-@default_router.callback_query(only_confirmed, F.data.startswith("my_achievs"))
+@default_router.callback_query(F.data.startswith("my_achievs"), only_confirmed)
 async def my_achievs_callback(call: CallbackQuery):
 	messages = [
 		"🏆️ Ваши достижения\n",
@@ -156,7 +156,7 @@ async def my_achievs_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data.startswith("achievements"))
+@default_router.callback_query(F.data.startswith("achievements"), only_confirmed)
 async def achievements_callback(call: CallbackQuery):
 	global alerts
 
@@ -184,7 +184,7 @@ async def achievements_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data == "record_creo")
+@default_router.callback_query(F.data == "record_creo", only_confirmed)
 async def record_creo_callback(call: CallbackQuery):
 	messages = [
 		"В этих ботах вы можете легко записать креативы:\n",
@@ -202,7 +202,7 @@ async def record_creo_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data == "work")
+@default_router.callback_query(F.data == "work", only_confirmed)
 async def work_callback(call: CallbackQuery):
 	messages = [
 		"💻️ WORK\n\n<b>ССЫЛКИ НА БОТОВ</b>\nMines - <code>https://t.me/IziMinBot?start={hash}</code>",
@@ -217,7 +217,7 @@ async def work_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data.startswith("showmenu"))
+@default_router.callback_query(F.data.startswith("showmenu"), only_confirmed)
 async def showmenu_callback(call: CallbackQuery):
 	if call.data == "showmenu_after_reg":
 		await call.message.delete()
@@ -234,14 +234,14 @@ async def showmenu_callback(call: CallbackQuery):
 		)
 
 
-@default_router.callback_query(only_confirmed, F.data.startswith("admin_"))
+@default_router.callback_query(F.data.startswith("admin_"), only_confirmed)
 async def adminpanel_query_callback(call: CallbackQuery):
 	await call.message.edit_text(
 		"ЗАГЛУШКА", reply_markup=inline.create_back_markup("showmenu")
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data == "adminpanel")
+@default_router.callback_query(F.data == "adminpanel")
 async def adminpanel_callback(call: CallbackQuery):
 	# └┏ ├「┌
 	messages = [
@@ -259,7 +259,7 @@ async def adminpanel_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data == "top_workers")
+@default_router.callback_query(F.data == "top_workers", only_confirmed)
 async def top_workers_callback(call: CallbackQuery):
 	# 🥇🥈🥉🏅
 	messages = [
@@ -283,7 +283,7 @@ async def top_workers_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data == "withdraws_history")
+@default_router.callback_query(F.data == "withdraws_history", only_confirmed)
 async def withdraws_history_callback(call: CallbackQuery):
 	# 🟢🟡⚪️
 	messages = [
@@ -303,7 +303,7 @@ async def withdraws_history_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data == "status_levels")
+@default_router.callback_query(F.data == "status_levels", only_confirmed)
 async def status_levels_callback(call: CallbackQuery):
 	# ❌✅🏆️📊🎯💼💰️
 	messages = [
@@ -335,7 +335,7 @@ async def status_levels_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data == "statistics_online")
+@default_router.callback_query(F.data == "statistics_online", only_confirmed)
 async def statistics_online_callback(call: CallbackQuery):
 	# ✨📊💰️🎮️
 	messages = [
@@ -354,7 +354,7 @@ async def statistics_online_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data == "status")
+@default_router.callback_query(F.data == "status", only_confirmed)
 async def status_callback(call: CallbackQuery):
 	# ❌✅🏆️📊🎯💼💰️
 	messages = [
@@ -379,7 +379,7 @@ async def status_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data == "profile")
+@default_router.callback_query(F.data == "profile", only_confirmed)
 async def profile_callback(call: CallbackQuery):
 	if call.from_user.id in config.secrets.ADMINS_IDS:
 		messages = [
@@ -425,7 +425,7 @@ async def profile_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data == "withdraw")
+@default_router.callback_query(F.data == "withdraw", only_confirmed)
 async def withdraw_callback(call: CallbackQuery):
 	messages = [
 		"💰️ Баланс: 0 RUB\n",
@@ -462,7 +462,7 @@ async def withdraw_callback(call: CallbackQuery):
 		)
 
 
-@default_router.callback_query(only_confirmed, F.data == "withdraw_crypto")
+@default_router.callback_query(F.data == "withdraw_crypto", only_confirmed)
 async def withdraw_crypto_callback(call: CallbackQuery):
 	messages = [
 		"Какую криптовалюту вы хотите использовать для вывода денег?\n",
@@ -491,7 +491,7 @@ async def withdraw_crypto_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(only_confirmed, F.data == "withdraw_card")
+@default_router.callback_query(F.data == "withdraw_card", only_confirmed)
 async def withdraw_card_callback(call: CallbackQuery, state: FSMContext):
 	users[call.message.chat.id] = {
 		"final": True,
@@ -508,7 +508,7 @@ async def withdraw_card_callback(call: CallbackQuery, state: FSMContext):
 	await state.set_state(CardWithdrawGroup.withdraw_sum)
 
 
-@default_router.message(F.text, CardWithdrawGroup.withdraw_sum)
+@default_router.message(F.text, CardWithdrawGroup.withdraw_sum, message_only_confirmed)
 async def withdraw_card_message(message: Message, state: FSMContext):
 	user = users.get(message.chat.id, {})
 
@@ -535,9 +535,16 @@ async def text_handler(message: Message):
 			parse_mode=ParseMode.HTML,
 			reply_markup=inline.create_main_menu_markup(),
 		)
+		return
+	
+	await message.answer(
+		"Вы не зарегистрированы в боте, для продолжения Вам необходимо подать заявку. Это займет менее 5 минут.",
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.create_start_markup(),
+	)
 
 
-@default_router.callback_query(only_confirmed, F.data == "withdraw_steam")
+@default_router.callback_query(F.data == "withdraw_steam", message_only_confirmed)
 async def withdraw_steam_callback(call: CallbackQuery, state: FSMContext):
 	message = "💰️ Баланс: 0 RUB\nВывод на аккаунт Steam\nЛимит одного вывода: от 2 000 ₽ до 12 000 ₽\n\n✍️ Введите сумму которую Вы хотите вывести."
 
@@ -550,7 +557,7 @@ async def withdraw_steam_callback(call: CallbackQuery, state: FSMContext):
 	await state.set_state(SteamWidthDrawGroup.withdraw_sum)
 
 
-@default_router.message(message_only_confirmed, F.text, SteamWidthDrawGroup.withdraw_sum)
+@default_router.message(F.text, SteamWidthDrawGroup.withdraw_sum, message_only_confirmed)
 async def withdraw_steam_message(message: Message, state: FSMContext):
 	await message.edit_text(
 		"💰️ Баланс: 0 RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
@@ -558,12 +565,3 @@ async def withdraw_steam_message(message: Message, state: FSMContext):
 	)
 
 	await state.clear()
-
-
-@default_router.message(F.text)
-async def other_messages(message: Message):
-	await message.answer(
-		"Вы не зарегистрированы в боте, для продолжения Вам необходимо подать заявку. Это займет менее 5 минут.",
-		parse_mode=ParseMode.HTML,
-		reply_markup=inline.create_start_markup(),
-	)
