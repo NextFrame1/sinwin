@@ -69,7 +69,7 @@ async def cmd_start(message: Message):
 	print(partner)
 
 	if users.get(message.from_user.id) is not None or partner is not None or message.from_user.id in config.secrets.ADMINS_IDS:
-		if users.get(message.from_user.id, {}).get("final", False) or partner is not None:
+		if users.get(message.from_user.id, {}).get("final", False) and partner is not None:
 			await message.answer(
 				"🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!",
 				parse_mode=ParseMode.HTML,
@@ -406,7 +406,7 @@ async def send_request_callback(call: CallbackQuery):
 
 	for admin_id in config.secrets.ADMINS_IDS:
 		form = [
-			f"Анкета: {call.from_user.username}",
+			f"Анкета: @{call.from_user.username}",
 			f'Telegram ID: {call.from_user.id}',
 			f'Телефон: <code>{data.get("number_phone")}</code>',
 			'Рефка: {username_ref}, {hash_ref}',
