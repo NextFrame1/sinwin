@@ -63,10 +63,14 @@ async def cmd_start(message: Message):
 	:type		message:  Message
 	"""
 	partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": message.from_user.id}})
-	partner = None if len(partners[0]['partners']) < 1 else partners[0]['partners'][-1]
-	users[message.from_user.id] = {"final": False, "count": 0}
 
-	print(partner)
+	if users.get(message.from_user.id, None) is None:
+		users[message.from_user.id] = {"final": False, "count": 0}
+
+	try:
+		partner = None if len(partners[0]['partners']) < 1 else partners[0]['partners'][-1]
+	except Exception:
+		partner = None
 
 	if users.get(message.from_user.id) is not None or partner is not None or message.from_user.id in config.secrets.ADMINS_IDS:
 		if users.get(message.from_user.id, {}).get("final", False) and partner is not None:
