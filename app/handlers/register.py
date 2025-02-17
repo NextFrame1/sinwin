@@ -1,5 +1,5 @@
 import re
-
+import traceback
 from aiogram import F, Router
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
@@ -70,10 +70,12 @@ async def cmd_start(message: Message):
 	try:
 		partner = None if len(partners[0]['partners']) < 1 else partners[0]['partners'][-1]
 	except Exception:
+		print(traceback.format_exc())
 		partner = None
 
 	if users.get(message.from_user.id) is not None or partner is not None or message.from_user.id in config.secrets.ADMINS_IDS:
-		if users.get(message.from_user.id, {}).get("final", False) and partner is not None:
+		if users.get(message.from_user.id, {}).get("final", False) or partner is not None:
+			users[message.from_user.id] = {"final": True, "count": 0}
 			await message.answer(
 				"🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!",
 				parse_mode=ParseMode.HTML,

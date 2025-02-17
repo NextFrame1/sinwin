@@ -204,8 +204,12 @@ async def record_creo_callback(call: CallbackQuery):
 
 @default_router.callback_query(F.data == "work", only_confirmed)
 async def work_callback(call: CallbackQuery):
+	partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": call.from_user.id}})
+	partner = partners[0]['partners'][-1]
+
+	partner_hash = partner.get("partner_hash", "Недоступно")
 	messages = [
-		"💻️ WORK\n\n<b>ССЫЛКИ НА БОТОВ</b>\nMines - <code>https://t.me/IziMinBot?start={hash}</code>",
+		f"💻️ WORK\n\n<b>ССЫЛКИ НА БОТОВ</b>\nMines - <code>https://t.me/IziMin_test_Bot?start={partner_hash}</code>",
 		"Lucky Jet - <code>https://t.me/CashJetBot?start={hash}</code>",
 		"Speed Cash - <code>https://t.me/SPDCashBot?start={hash}</code>",
 		"Coin Flip - <code>https://t.me/CoinFlipBot?start={hash}</code>",
@@ -382,10 +386,11 @@ async def status_callback(call: CallbackQuery):
 @default_router.callback_query(F.data == "profile", only_confirmed)
 async def profile_callback(call: CallbackQuery):
 	if call.from_user.id in config.secrets.ADMINS_IDS:
+		balance, status_code = await APIRequest.get("/base/admin_balance")
 		messages = [
 			f"<b>Ваш профиль</b>\n\n🆔 Ваш ID: {call.from_user.id}",
 			"🛡️ Ваш хеш: admin\n",
-			"💰️ Баланс: 0.0 RUB",
+			f"💰️ Баланс: {balance[0]} RUB",
 			"⚖️ Статус: Админ",
 			"🏗️ Количество рефералов: 0",
 		]
@@ -401,6 +406,10 @@ async def profile_callback(call: CallbackQuery):
 	partner = partners[0]['partners'][-1]
 
 	partner_hash = partner.get("partner_hash", "Недоступно")
+	result, statuscode = await APIRequest.post(
+		"/user/find", {"opts": {"is_referal": True, "referal_parent": partner_hash}}
+	)
+	referrers_count = len(users) if isinstance(result['users'], list) else 0
 	status = partner.get('status', 'новичок')
 
 	reg_date = datetime.fromisoformat(partner.get('register_date'))
@@ -414,8 +423,9 @@ async def profile_callback(call: CallbackQuery):
 		f"💰️ Баланс: {partner.get('balance', 0.0)} RUB",
 		f"⚖️ Статус: {status}",
 		"🎯 Вы получаете: 35%\n",
-		"🏗️ Количество рефералов: 0",
+		f"🏗️ Количество рефералов: {referrers_count}",
 		f"☯️ Количество дней с нами: {days_difference}",
+		# f'Ваша реферальная ссылка на @IziMin_test_Bot: https://t.me/IziMin_test_Bot?start='
 	]
 
 	await call.message.edit_text(

@@ -46,6 +46,9 @@ class APIRequest:
 		except aiohttp.ClientError:
 			logger.error(f"[aiohttp] {url} error: {traceback.format_exc()}")
 			return False, 500
+		except Exception:
+			logger.error(f"[APIRequest] {url} error: {traceback.format_exc()}")
+			return False, 500
 
 	@staticmethod
 	async def post(url: str, data: Dict[Any, Any]) -> Tuple[Union[Any, bool], int]:
