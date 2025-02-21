@@ -74,7 +74,7 @@ async def cmd_start(message: Message):
 		partner = None
 
 	if users.get(message.from_user.id) is not None or partner is not None or message.from_user.id in config.secrets.ADMINS_IDS:
-		if users.get(message.from_user.id, {}).get("final", False) or partner is not None:
+		if users.get(message.from_user.id, {}).get("final", False) and partner is not None:
 			users[message.from_user.id] = {"final": True, "count": 0}
 			await message.answer(
 				"🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!",
@@ -410,38 +410,40 @@ async def send_request_callback(call: CallbackQuery):
 
 	await call.answer()
 
+	username = f'@{call.from_user.username}' if call.from_user.username else f'ID {call.from_user.id}'
+
+	form = [
+		f"Анкета: {username}",
+		f'Telegram ID: {call.from_user.id}',
+		f'Телефон: <code>{data.get("number_phone")}</code>',
+		'Рефка: {username_ref}, {hash_ref}',
+		f'Попытка регистрации: {users_data.get("count", 1)}',
+		'Пользовался уже ботами: нет\n',
+
+		f'Имя, возраст: {data.get("name")}',
+		f'Город: {data.get("city")}',
+		f'Есть ли у вас опыт в арбитраже трафика: {data.get("experience_status")}',
+	]
+
+	if data.get("experience_status") == "Да":
+		form.append(f'Опыт: {data.get("experience_time")}')
+
+	mark = '✅' if data.get("ubt_is").lower() == 'условно бесплатный трафик' or data.get("ubt_is").lower() == 'условно бесплатный' else '❌'
+
+	form += [
+		f'Вы подключены к партнерке 1Win: {"Да" if data.get("referal_status") else "Нет"}',
+		f'{mark} Что такое УБТ трафик: {data.get("ubt_is")}',
+		f'Опыт в УБТ: {data.get("ubt_status")}',
+		f'Источники трафика: {data.get("source_traffic")}',
+		f'Откуда вы узнали о нас: {data.get("you_source")}',
+		f'О себе: {data.get("about_you")}',
+
+		f'\n{datetime.now().strftime("%H:%M %d.%m.%Y")}'
+	]
+
+	forms[call.from_user.id] = form
+
 	for admin_id in config.secrets.ADMINS_IDS:
-		form = [
-			f"Анкета: @{call.from_user.username}",
-			f'Telegram ID: {call.from_user.id}',
-			f'Телефон: <code>{data.get("number_phone")}</code>',
-			'Рефка: {username_ref}, {hash_ref}',
-			f'Попытка регистрации: {users_data.get("count", 1)}',
-			'Пользовался уже ботами: нет\n',
-
-			f'Имя, возраст: {data.get("name")}',
-			f'Город: {data.get("city")}',
-			f'Есть ли у вас опыт в арбитраже трафика: {data.get("experience_status")}',
-		]
-
-		if data.get("experience_status") == "Да":
-			form.append(f'Опыт: {data.get("experience_time")}')
-
-		mark = '✅' if data.get("ubt_is").lower() == 'условно бесплатный трафик' or data.get("ubt_is").lower() == 'условно бесплатный' else '❌'
-
-		form += [
-			f'Вы подключены к партнерке 1Win: {"Да" if data.get("referal_status") else "Нет"}',
-			f'{mark} Что такое УБТ трафик: {data.get("ubt_is")}',
-			f'Опыт в УБТ: {data.get("ubt_status")}',
-			f'Источники трафика: {data.get("source_traffic")}',
-			f'Откуда вы узнали о нас: {data.get("you_source")}',
-			f'О себе: {data.get("about_you")}',
-
-			f'\n{datetime.now().strftime("%H:%M %d.%m.%Y")}'
-		]
-
-		forms[call.from_user.id] = form
-
 		await bot.send_message(chat_id=admin_id, text="\n".join(form), parse_mode=ParseMode.HTML, 
 								reply_markup=inline.get_approve_menu(call.from_user.id))
 
