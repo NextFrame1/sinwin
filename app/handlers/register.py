@@ -74,7 +74,7 @@ async def cmd_start(message: Message):
 		partner = None
 
 	if users.get(message.from_user.id) is not None or partner is not None or message.from_user.id in config.secrets.ADMINS_IDS:
-		if users.get(message.from_user.id, {}).get("final", False) and partner is not None:
+		if users.get(message.from_user.id, {}).get("final", False) and partner is not None or message.from_user.id in config.secrets.ADMINS_IDS:
 			users[message.from_user.id] = {"final": True, "count": 0}
 			await message.answer(
 				"🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!",
