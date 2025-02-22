@@ -204,8 +204,22 @@ async def record_creo_callback(call: CallbackQuery):
 
 @default_router.callback_query(F.data == "work", only_confirmed)
 async def work_callback(call: CallbackQuery):
-	partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": call.from_user.id}})
-	partner = partners[0]['partners'][-1]
+	try:
+		partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": call.from_user.id}})
+		partner = partners[0]['partners'][-1]
+	except Exception:
+		messages = [
+			"💻️ WORK\n\n<b>ССЫЛКИ НА БОТОВ</b>\nMines - <code>https://t.me/IziMin_test_Bot</code>",
+			"Lucky Jet - <code>https://t.me/CashJetBot</code>",
+			"Speed Cash - <code>https://t.me/SPDCashBot</code>",
+			"Coin Flip - <code>https://t.me/CoinFlipBot</code>",
+		]
+		await call.message.edit_text(
+			"\n".join(messages),
+			parse_mode=ParseMode.HTML,
+			reply_markup=inline.create_work_markup(),
+		)
+		return
 
 	partner_hash = partner.get("partner_hash", "Недоступно")
 	messages = [
