@@ -319,6 +319,17 @@ def create_crypto_withdraw_markup():
 	return builder.as_markup()
 
 
+def create_withdraw_continue_markup(callback: str = "showmenu"):
+	builder = InlineKeyboardBuilder()
+
+	builder.row(InlineKeyboardButton(text='✅ Подтвердить', callback_data='approve_card_withdraw'))
+	builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data=callback))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
 def create_back_markup(callback: str = "showmenu"):
 	builder = InlineKeyboardBuilder()
 

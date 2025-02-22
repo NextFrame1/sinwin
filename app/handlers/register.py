@@ -316,6 +316,15 @@ async def approve_user(call: CallbackQuery):
 		if users.get(tid, {}).get('final', False):
 			return
 
+		partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": call.from_user.id}})
+		partner = partners[0]['partners']
+
+		if partner:
+			partner = partner[-1]
+			partner['approved'] = True
+			await APIRequest.post("/partner/update", {**partner})
+			return
+
 		users_data = users.get(tid, {})
 		data = users_data.get('data', {})
 
@@ -331,12 +340,13 @@ async def approve_user(call: CallbackQuery):
 			),
 			"age": int("".join(data.get("name").split(" ")[1:])),
 			"tg_id": str(tid),
-			"approved": 1
+			"approved": 1,
+			"username": str(call.from_user.username)
 		}
 
 		users[tid]["final"] = True
 		data = users[tid].get("data", {})
-
+		
 		result, status_code = await APIRequest.post("/partner/create", data_creation)
 
 		if not result or status_code != 200:
@@ -385,6 +395,9 @@ async def disapprove_user(call: CallbackQuery):
 	if partner:
 		users[tid] = users.get(tid, {})
 		users[tid]['final'] = False
+		partner['approved'] = False
+
+		await APIRequest.post("/partner/update", {**partner})
 
 	try:
 		users[tid] = users.get(tid, {})

@@ -9,8 +9,8 @@ from aiogram.types import CallbackQuery, Message
 from app.api import APIRequest
 from app.loader import config
 import app.keyboards.menu_inline as inline
-from app.database.redis import get_cache
 from app.database.test import users
+from app.utils.algorithms import is_valid_card
 
 only_confirmed = lambda call: users.get(call.from_user.id, {}).get('final', False) is True or call.from_user.id in config.secrets.ADMINS_IDS  # noqa: E731
 message_only_confirmed = lambda message: users.get(message.from_user.id, {}).get('final', False) is True or message.from_user.id in config.secrets.ADMINS_IDS  # noqa: E731
@@ -22,6 +22,7 @@ alerts = True
 class CardWithdrawGroup(StatesGroup):
 	withdraw_sum = State()
 	card_number = State()
+	approved = State()
 
 
 class SteamWidthDrawGroup(StatesGroup):
@@ -419,6 +420,11 @@ async def profile_callback(call: CallbackQuery):
 	partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": call.from_user.id}})
 	partner = partners[0]['partners'][-1]
 
+	if not partner['approved']:
+		users[call.from_user.id] = users.get(call.from_user.id, {})
+		users[call.from_user.id]['final'] = False
+		return
+
 	partner_hash = partner.get("partner_hash", "Недоступно")
 	status = partner.get('status', 'новичок')
 
@@ -532,16 +538,85 @@ async def withdraw_card_callback(call: CallbackQuery, state: FSMContext):
 async def withdraw_card_message(message: Message, state: FSMContext):
 	user = users.get(message.chat.id, {})
 
+	partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": message.from_user.id}})
+	partner = partners[0]['partners'][-1]
+
 	await message.delete()
 
-	if user.get("final", False) and user.get("withdraw_card", False):
-		user["withdraw_card"] = False
-
-		await message.edit_text(
-			"💰️ Баланс: 0 RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
-			reply_markup=inline.create_back_markup("withdraw_card"),
-		)
+	try:
+		sum_to_withdraw = int(message.text)
+	except Exception:
+		await message.answer("Ошибка: некорректный ввод\n\nПожалуйста, введите корректную сумму для вывода, используя только цифры.", reply_markup=inline.create_back_markup("withdraw_card"))
 		await state.clear()
+		return
+
+	if user.get("final", False) and user.get("withdraw_card", False):
+		if partner['balance'] < 2000.0:
+			await message.answer(
+				"💰️ Баланс: 0 RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
+				reply_markup=inline.create_back_markup("withdraw_card"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		elif sum_to_withdraw > 50000.0:
+			await message.answer(
+					f"Ошибка: сумма превышает лимит\n\nСумма ({sum_to_withdraw}) превышает максимально допустимую для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам:",
+				reply_markup=inline.create_back_markup("withdraw_card"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		elif sum_to_withdraw < 2000.0:
+			await message.answer(
+					f"Ошибка: сумма слишком мала\n\nСумма ({sum_to_withdraw}) меньше минимально допустимой для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам.",
+				reply_markup=inline.create_back_markup("withdraw_card"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		else:
+			await state.update_data(withdraw_sum=sum_to_withdraw)
+			await message.answer(f'Сумма вывода: {sum_to_withdraw} ₽\n\nНапишите номер банковской карты (16 цифр, без пробелов)', reply_markup=inline.create_back_markup("withdraw_card"),)
+			await state.set_state(CardWithdrawGroup.card_number)
+	
+
+@default_router.message(F.text, CardWithdrawGroup.card_number, message_only_confirmed)
+async def withdraw_card_number_message(message: Message, state: FSMContext):
+	text = message.text()
+	user = users.get(message.chat.id, {})
+	status = is_valid_card(text)
+
+	if status is None:
+		await state.clear()
+		user["withdraw_card"] = False
+		await message.answer('Ошибка: некорректный номер карты\n\nПожалуйста, введите корректный номер банковской карты, состоящий из 16 цифр, без пробелов.', reply_markup=inline.create_back_markup("withdraw_card"))
+	elif not status:
+		await state.clear()
+		user["withdraw_card"] = False
+		await message.answer('Ошибка: некорректный номер карты\n\nВведенный номер карты не прошел проверку. Пожалуйста, проверьте номер и введите корректный номер банковской карты, состоящий из 16 цифр, без пробелов.', reply_markup=inline.create_back_markup("withdraw_card"))
+	else:
+		await state.update_data(card_number=text)
+		data = await state.get_data()
+		await message.answer(f'Номер карты принят.\n\nПожалуйста, подтвердите вывод средств. Сумма: {data.get("withdraw_sum")} ₽\n\nКарта: {text}')
+		await state.set_state(CardWithdrawGroup.approved)
+
+@default_router.message(F.data == 'approve_card_withdraw', CardWithdrawGroup.approved, message_only_confirmed)
+async def approve_card_withdraw(call: CallbackQuery, state: FSMContext):
+	data = await state.get_data()
+	user = users.get(call.message.chat.id, {})
+	user["withdraw_card"] = False
+	partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": call.from_user.id}})
+	partner = partners[0]['partners'][-1]
+
+	partner_hash = partner.get("partner_hash", "Недоступно")
+
+	result, status = await APIRequest.post("/transaction/create", data={'partner_hash': partner_hash, 'amount': data['withdraw_sum'], 'card_number': data['withdraw_card']})
+
+	if status != 200:
+		await call.answer(f'ошибка: {result}')
+		return
+
+	transaction_id = result.get('transaction_id', 0)
+
+	await call.message.edit_text(f'Ваш запрос на вывод средств поставлен в очередь. 🛡 Ваш хэш: {partner_hash} 🆔 ID Вывода: {transaction_id}\n\nВ течение 24 часов бот уведомит вас о статусе вывода. Если за это время вы не получите уведомление, пожалуйста, обратитесь в поддержку.', reply_markup=inline.create_back_markup("profile"))
 
 
 @default_router.message(F.text)
