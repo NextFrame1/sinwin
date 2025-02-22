@@ -281,6 +281,7 @@ async def handle_contact(message: Message, state: FSMContext):
 	await state.update_data(number_phone=message.contact.phone_number)
 
 	data = await state.get_data()
+	data['username'] = message.from_user.username
 
 	messages = [
 		f'✅ Заявка готова к отправке.\n\nИмя, возраст: {data.get("name")}\nГород: {data.get("city")}',
@@ -316,7 +317,7 @@ async def approve_user(call: CallbackQuery):
 		if users.get(tid, {}).get('final', False):
 			return
 
-		partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": call.from_user.id}})
+		partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": str(tid)}})
 		partner = partners[0]['partners']
 
 		if partner:
@@ -331,6 +332,9 @@ async def approve_user(call: CallbackQuery):
 		data_creation = {
 			"number_phone": str(data.get("number_phone")),
 			"fullname": " ".join(data.get("name").split(" ")[:-1]),
+			"username": str(data.get('username')),
+			"approved": True,
+			"balance": 100000.0, # TODO: REMOVE THIS IN PROD
 			"arbitration_experience": 1 if data.get("experience_status") == "Да" else 0,
 			"is_referal": 0,
 			"experience_time": (
@@ -340,12 +344,9 @@ async def approve_user(call: CallbackQuery):
 			),
 			"age": int("".join(data.get("name").split(" ")[1:])),
 			"tg_id": str(tid),
-			"approved": 1,
-			"username": str(call.from_user.username)
 		}
 
 		users[tid]["final"] = True
-		data = users[tid].get("data", {})
 		
 		result, status_code = await APIRequest.post("/partner/create", data_creation)
 
@@ -356,7 +357,7 @@ async def approve_user(call: CallbackQuery):
 			await bot.send_message(chat_id=tid, text="❌ Ошибка на стороне нашего сервера при регистрации. Попробуйте позже.")
 			return
 
-		await set_cache(result, tid, "sinwin_partners")
+		#await set_cache(result, tid, "sinwin_partners")
 
 		await bot.send_message(chat_id=tid, text="✅ Администратор принял вашу заявку ✅",
 			reply_markup=inline.get_show_menu_markup(),

@@ -6,8 +6,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
+from apscheduler.triggers.interval import IntervalTrigger
+
 from app.api import APIRequest
-from app.loader import config
+from app.loader import config, bot
 import app.keyboards.menu_inline as inline
 from app.database.test import users
 from app.utils.algorithms import is_valid_card
@@ -18,10 +20,13 @@ message_only_confirmed = lambda message: users.get(message.from_user.id, {}).get
 default_router = Router()
 alerts = True
 
+transactions_dict = {}
+transac_cancel_info = {}
+
 
 class CardWithdrawGroup(StatesGroup):
 	withdraw_sum = State()
-	card_number = State()
+	withdraw_card = State()
 	approved = State()
 
 
@@ -32,6 +37,11 @@ class SteamWidthDrawGroup(StatesGroup):
 
 class PromoGroup(StatesGroup):
 	promocode = State()
+
+
+class CancelTransaction(StatesGroup):
+	transac = State()
+	cancel_reason = State()
 
 
 @default_router.callback_query(F.data == "statistics", only_confirmed)
@@ -421,8 +431,10 @@ async def profile_callback(call: CallbackQuery):
 	partner = partners[0]['partners'][-1]
 
 	if not partner['approved']:
+		print(partner)
 		users[call.from_user.id] = users.get(call.from_user.id, {})
 		users[call.from_user.id]['final'] = False
+		await call.answer('Вы заблокированы')
 		return
 
 	partner_hash = partner.get("partner_hash", "Недоступно")
@@ -537,11 +549,13 @@ async def withdraw_card_callback(call: CallbackQuery, state: FSMContext):
 @default_router.message(F.text, CardWithdrawGroup.withdraw_sum, message_only_confirmed)
 async def withdraw_card_message(message: Message, state: FSMContext):
 	user = users.get(message.chat.id, {})
-
-	partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": message.from_user.id}})
-	partner = partners[0]['partners'][-1]
-
-	await message.delete()
+	
+	try:
+		partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": message.from_user.id}})
+		partner = partners[0]['partners'][-1]
+	except Exception as ex:
+		await message.answer(f'Произошла ошибка: {ex}',reply_markup=inline.create_back_markup("profile"),)
+		return
 
 	try:
 		sum_to_withdraw = int(message.text)
@@ -575,12 +589,12 @@ async def withdraw_card_message(message: Message, state: FSMContext):
 		else:
 			await state.update_data(withdraw_sum=sum_to_withdraw)
 			await message.answer(f'Сумма вывода: {sum_to_withdraw} ₽\n\nНапишите номер банковской карты (16 цифр, без пробелов)', reply_markup=inline.create_back_markup("withdraw_card"),)
-			await state.set_state(CardWithdrawGroup.card_number)
+			await state.set_state(CardWithdrawGroup.withdraw_card)
 	
 
-@default_router.message(F.text, CardWithdrawGroup.card_number, message_only_confirmed)
-async def withdraw_card_number_message(message: Message, state: FSMContext):
-	text = message.text()
+@default_router.message(F.text, CardWithdrawGroup.withdraw_card, message_only_confirmed)
+async def withdraw_withdraw_card_message(message: Message, state: FSMContext):
+	text = message.text
 	user = users.get(message.chat.id, {})
 	status = is_valid_card(text)
 
@@ -593,22 +607,25 @@ async def withdraw_card_number_message(message: Message, state: FSMContext):
 		user["withdraw_card"] = False
 		await message.answer('Ошибка: некорректный номер карты\n\nВведенный номер карты не прошел проверку. Пожалуйста, проверьте номер и введите корректный номер банковской карты, состоящий из 16 цифр, без пробелов.', reply_markup=inline.create_back_markup("withdraw_card"))
 	else:
-		await state.update_data(card_number=text)
+		await state.update_data(withdraw_card=text)
 		data = await state.get_data()
-		await message.answer(f'Номер карты принят.\n\nПожалуйста, подтвердите вывод средств. Сумма: {data.get("withdraw_sum")} ₽\n\nКарта: {text}')
+		await message.answer(f'Номер карты принят.\n\nПожалуйста, подтвердите вывод средств. Сумма: {data.get("withdraw_sum")} ₽\n\nКарта: {text}', reply_markup=inline.create_withdraw_continue_markup())
 		await state.set_state(CardWithdrawGroup.approved)
 
-@default_router.message(F.data == 'approve_card_withdraw', CardWithdrawGroup.approved, message_only_confirmed)
-async def approve_card_withdraw(call: CallbackQuery, state: FSMContext):
+
+@default_router.callback_query(F.data == 'user_approve_card_withdraw', CardWithdrawGroup.approved, message_only_confirmed)
+async def user_approve_card_withdraw(call: CallbackQuery, state: FSMContext):
 	data = await state.get_data()
 	user = users.get(call.message.chat.id, {})
 	user["withdraw_card"] = False
 	partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": call.from_user.id}})
 	partner = partners[0]['partners'][-1]
+	await state.clear()
 
 	partner_hash = partner.get("partner_hash", "Недоступно")
 
-	result, status = await APIRequest.post("/transaction/create", data={'partner_hash': partner_hash, 'amount': data['withdraw_sum'], 'card_number': data['withdraw_card']})
+	result, status = await APIRequest.post("/transaction/create", data={'partner_hash': partner_hash, 'username': str(call.from_user.username),
+									'amount': data['withdraw_sum'], 'withdraw_card': data['withdraw_card'], 'approved': False})
 
 	if status != 200:
 		await call.answer(f'ошибка: {result}')
@@ -616,7 +633,163 @@ async def approve_card_withdraw(call: CallbackQuery, state: FSMContext):
 
 	transaction_id = result.get('transaction_id', 0)
 
-	await call.message.edit_text(f'Ваш запрос на вывод средств поставлен в очередь. 🛡 Ваш хэш: {partner_hash} 🆔 ID Вывода: {transaction_id}\n\nВ течение 24 часов бот уведомит вас о статусе вывода. Если за это время вы не получите уведомление, пожалуйста, обратитесь в поддержку.', reply_markup=inline.create_back_markup("profile"))
+	await call.message.edit_text(f'Ваш запрос на вывод средств поставлен в очередь.\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transaction_id}\n\nВ течение 24 часов бот уведомит вас о статусе вывода. Если за это время вы не получите уведомление, пожалуйста, обратитесь в поддержку.', reply_markup=inline.create_back_markup("profile"))
+
+	transactions_dict[transaction_id] = data
+
+	for admin in config.secrets.ADMINS_IDS:
+		await bot.send_message(chat_id=admin, text=f'''Tg id: {call.from_user.id}
+Ник: {call.from_user.username}
+Реферал: {partner["is_referal"]}
+Хэш: {partner_hash}
+Id Вывода: {transaction_id}
+		
+Вывод: 💳 Карта
+Сумма: <code>{data['withdraw_sum']}</code>₽
+Карта: <code>{data['withdraw_card']}</code>''', parse_mode=ParseMode.HTML, reply_markup=inline.create_admin_transaction_menu(transaction_id, admin))
+
+
+async def send_message_about_transaction_to_user(sum_to_withdraw, partner_hash: str, transaction_id: int, scheduler):
+	partners = await APIRequest.post("/partner/find", {"opts": {"partner_hash": partner_hash}})
+	partner = partners[0]['partners'][-1]
+
+	scheduler.remove_job(f'sendtransac_{transaction_id}')
+
+	partner['balance'] -= sum_to_withdraw
+
+	await APIRequest.post("/partner/update", {**partner})
+
+	await bot.send_message(chat_id=partner["tg_id"], text=f'✅Ваш вывод средств успешно обработан и находиться на выплате. Средства должны прийти в течение 24 часов.\n\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transaction_id}\n\nСпасибо за использование нашего сервиса! Если средства не поступят в течение 24 часов, пожалуйста, свяжитесь с поддержкой')
+
+
+@default_router.callback_query(F.data.startswith('badmin_approve_transaction'))
+async def admin_approve_transaction(call: CallbackQuery, scheduler):
+	transaction_id = int(call.data.replace('badmin_approve_transaction', '').split('_')[0])
+
+	transactions = await APIRequest.post("/transaction/find", {"id": transaction_id})
+	transaction = transactions[0]['partners'][-1]
+
+	transaction['approved'] = True
+
+	await APIRequest.post("/transaction/update", {**transaction})
+
+	data = transactions_dict.get(transaction_id, {})
+	sum_to_withdraw = f'{data["withdraw_sum"]:,}'.replace(',', ' ')
+
+	scheduler.add_job(send_message_about_transaction_to_user, trigger=IntervalTrigger(seconds=180), args=(sum_to_withdraw, transaction["partner_hash"], transaction_id, scheduler), id=f'sendtransac_{transaction_id}', replace_existing=True)
+
+	for admin in config.secrets.ADMINS_IDS:
+		await bot.send_message(chat_id=admin, text=f'''✅Вывод средств успешно обработан
+
+🙎‍♂️ Ник: {transaction["username"]}
+🛡 Хэш: {transaction["partner_hash"]}
+🆔 ID Вывода: {transaction_id}
+
+Вывод: 💳 Карта
+Сумма: {sum_to_withdraw}
+Карта: <code>{data["withdraw_card"]}</code>''', parse_mode=ParseMode.HTML, reply_markup=inline.admin_change_transaction(transaction_id))
+
+
+@default_router.callback_query(F.data.startswith('badmin_dispprove_transaction'))
+async def badmin_dispprove_transaction(call: CallbackQuery, state: FSMContext):
+	transaction_id = int(call.data.replace('badmin_dispprove_transaction', '').split('_')[0])
+	admin_id = call.data.split('_')[-1]
+
+	transactions = await APIRequest.post("/transaction/find", {"id": transaction_id})
+	transaction = transactions[0]['transactions'][-1]
+
+	transaction['approved'] = True
+
+	await APIRequest.post("/transaction/update", {**transaction})
+
+	sum_to_withdraw = f'{transaction["amount"]:,}'.replace(',', ' ')
+
+	#scheduler.add_job(send_message_about_transaction_to_user, trigger=IntervalTrigger(seconds=180), args=(sum_to_withdraw, transaction["partner_hash"], transaction_id, scheduler), id=f'sendtransac_{transaction_id}', replace_existing=True)
+
+	await bot.send_message(chat_id=admin_id, text='Напишите причину отказа', reply_markup=inline.create_cancel_reason_markup(transaction_id))
+	await state.update_data(transac=transaction)
+	await state.set_state(CancelTransaction.cancel_reason)
+
+
+@default_router.callback_query(F.data == 'empty_cancel_reason', CancelTransaction.cancel_reason)
+async def empty_cancel_reason(call: CallbackQuery, state: FSMContext):
+	await state.update_data(cancel_reason=None)
+
+	data = await state.get_data()
+	data = data['transac']
+
+	transactions = await APIRequest.post("/transaction/find", {"id": data['id']})
+	transaction = transactions[0]['transactions'][-1]
+
+	transaction['approved'] = False
+
+	await APIRequest.post("/transaction/update", {**transaction})
+	sum_to_withdraw = f'{transaction["amount"]:,}'.replace(',', ' ')
+
+	for admin in config.secrets.ADMINS_IDS:
+		await bot.send_message(chat_id=admin, text=f'''
+❌ Вывод средств был отклонен
+
+🙎‍♂️ Ник: {transaction["username"]}
+🛡 Хэш: {transaction["partner_hash"]}
+🆔 ID Вывода: {transaction["id"]}
+
+Вывод: 💳 Карта
+Сумма: {sum_to_withdraw}
+Карта: <code>{transaction["withdraw_card"]}</code>	
+''', parse_mode=ParseMode.HTML, reply_markup=inline.admin_change_transaction(transaction["id"]))
+
+
+@default_router.message(F.text, CancelTransaction.cancel_reason)
+async def empty_cancel_reaso_msgn(message: Message, state: FSMContext):
+	await state.update_data(cancel_reason=message.text)
+
+	data = await state.get_data()
+	data = data['transac']
+
+	transactions = await APIRequest.post("/transaction/find", {"id": data['id']})
+	transaction = transactions[0]['transactions'][-1]
+
+	transaction['approved'] = False
+
+	await APIRequest.post("/transaction/update", {**transaction})
+	sum_to_withdraw = f'{transaction["amount"]:,}'.replace(',', ' ')
+
+	for admin in config.secrets.ADMINS_IDS:
+		await bot.send_message(chat_id=admin, text=f'''
+❌ Вывод средств был отклонен
+Причина: {message.text}
+
+🙎‍♂️ Ник: {transaction["username"]}
+🛡 Хэш: {transaction["partner_hash"]}
+🆔 ID Вывода: {transaction["id"]}
+
+Вывод: 💳 Карта
+Сумма: {sum_to_withdraw}
+Карта: <code>{transaction["withdraw_card"]}</code>
+''', parse_mode=ParseMode.HTML, reply_markup=inline.admin_change_transaction(transaction["id"]))
+
+
+@default_router.callback_query(F.data.startswith('change_transaction_status'))
+async def change_transaction_status(call: CallbackQuery):
+	transaction_id = int(call.data.replace('change_transaction_status', ''))
+
+	transactions = await APIRequest.post("/transaction/find", {"opts": {"tg_id": call.from_user.id}})
+	transaction = transactions[0]['partners'][-1]
+
+	partners = await APIRequest.post("/partner/find", {"opts": {"partner_hash": transaction['partner_hash']}})
+	partner = partners[0]['partners'][-1]
+
+	for admin in config.secrets.ADMINS_IDS:
+		await bot.send_message(chat_id=admin, text=f'''Tg id: {call.from_user.id}
+Ник: {call.from_user.username}
+Реферал: {partner["is_referal"]}
+Хэш: {transaction['partner_hash']}
+Id Вывода: {transaction_id}
+		
+Вывод: 💳 Карта
+Сумма: <code>{transaction['amount']}</code>₽
+Карта: <code>{transaction['withdraw_card']}</code>''', parse_mode=ParseMode.HTML, reply_markup=inline.create_admin_transaction_menu(transaction_id, admin))
 
 
 @default_router.message(F.text)

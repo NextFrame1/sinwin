@@ -7,6 +7,20 @@ from app import handlers, utils
 from app.api import APIRequest
 from app.loader import bot, config, dp
 
+from datetime import datetime, timedelta
+
+from aiogram import BaseMiddleware
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+
+class SchedulerMiddleware(BaseMiddleware):
+	def __init__(self, scheduler: AsyncIOScheduler):
+		self.scheduler = scheduler
+
+	async def __call__(self, handler, event, data):
+		data["apscheduler"] = self.scheduler
+		return await handler(event, data)
+
 
 async def on_startup() -> None:
 	uname = platform.uname()
@@ -29,6 +43,10 @@ async def main():
 
 	dp.include_routers(handlers.register_router)
 	dp.include_routers(handlers.default_router)
+
+	scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
+
+	dp.update.middleware(SchedulerMiddleware(scheduler=scheduler))
 
 	dp.startup.register(on_startup)
 

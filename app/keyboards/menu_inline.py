@@ -319,10 +319,43 @@ def create_crypto_withdraw_markup():
 	return builder.as_markup()
 
 
+
+def admin_change_transaction(transaction_id):
+	builder = InlineKeyboardBuilder()
+
+	builder.row(InlineKeyboardButton(text='Изменить', callback_data=f'change_transaction_status{transaction_id}'))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_cancel_reason_markup(transaction_id):
+	builder = InlineKeyboardBuilder()
+
+	builder.row(InlineKeyboardButton(text='Изменить', callback_data=f'change_transaction_status{transaction_id}'))
+	builder.row(InlineKeyboardButton(text='Не писать', callback_data='empty_cancel_reason'))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_admin_transaction_menu(transaction_id, admin_id):
+	builder = InlineKeyboardBuilder()
+
+	builder.row(InlineKeyboardButton(text='✅ Подтвердить', callback_data=f'badmin_approve_transaction{transaction_id}'))
+	builder.row(InlineKeyboardButton(text='❌ Отклонить', callback_data=f'badmin_disapprove_transaction{transaction_id}_{admin_id}'))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
 def create_withdraw_continue_markup(callback: str = "showmenu"):
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text='✅ Подтвердить', callback_data='approve_card_withdraw'))
+	builder.row(InlineKeyboardButton(text='✅ Подтвердить', callback_data='user_approve_card_withdraw'))
 	builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data=callback))
 
 	builder.adjust(1)
