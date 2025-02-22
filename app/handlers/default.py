@@ -628,7 +628,7 @@ async def user_approve_card_withdraw(call: CallbackQuery, state: FSMContext):
 									'amount': data['withdraw_sum'], 'withdraw_card': data['withdraw_card'], 'approved': False})
 
 	if status != 200:
-		await call.answer(f'ошибка: {result}')
+		await call.answer(f'ошибка: {status}')
 		return
 
 	transaction_id = result.get('transaction_id', 0)
@@ -659,7 +659,26 @@ async def send_message_about_transaction_to_user(sum_to_withdraw, partner_hash: 
 
 	await APIRequest.post("/partner/update", {**partner})
 
-	await bot.send_message(chat_id=partner["tg_id"], text=f'✅Ваш вывод средств успешно обработан и находиться на выплате. Средства должны прийти в течение 24 часов.\n\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transaction_id}\n\nСпасибо за использование нашего сервиса! Если средства не поступят в течение 24 часов, пожалуйста, свяжитесь с поддержкой')
+	await bot.send_message(chat_id=partner["tg_id"], text=f'✅Ваш вывод средств успешно обработан и находиться на выплате. Средства должны прийти в течение 24 часов.\n\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transaction_id}\n\nСпасибо за использование нашего сервиса! Если средства не поступят в течение 24 часов, пожалуйста, свяжитесь с поддержкой', reply_markup=inline.create_back_markup('profile'))
+
+
+async def send_message_about_ftransaction_to_user(reason, sum_to_withdraw, partner_hash: str, transaction_id: int, scheduler):
+	partners = await APIRequest.post("/partner/find", {"opts": {"partner_hash": partner_hash}})
+	partner = partners[0]['partners'][-1]
+
+	scheduler.remove_job(f'fsendtransac_{transaction_id}')
+
+	reason = f'Причина отказа: {reason}' if reason is not None else reason
+
+	await bot.send_message(chat_id=partner["tg_id"], text=f'''
+❌ Ваш запрос на вывод средств был отклонен.
+
+🛡 Ваш хэш: {partner_hash}
+🆔 ID Вывода: {transaction_id}
+{reason if reason is not None else ""}
+Пожалуйста, свяжитесь с поддержкой для получения дополнительной информации.	
+''', reply_markup=inline.create_back_markup('profile'))
+
 
 
 @default_router.callback_query(F.data.startswith('badmin_approve_transaction'))
@@ -702,8 +721,6 @@ async def badmin_dispprove_transaction(call: CallbackQuery, state: FSMContext):
 
 	await APIRequest.post("/transaction/update", {**transaction})
 
-	sum_to_withdraw = f'{transaction["amount"]:,}'.replace(',', ' ')
-
 	#scheduler.add_job(send_message_about_transaction_to_user, trigger=IntervalTrigger(seconds=180), args=(sum_to_withdraw, transaction["partner_hash"], transaction_id, scheduler), id=f'sendtransac_{transaction_id}', replace_existing=True)
 
 	await bot.send_message(chat_id=admin_id, text='Напишите причину отказа', reply_markup=inline.create_cancel_reason_markup(transaction_id))
@@ -712,7 +729,7 @@ async def badmin_dispprove_transaction(call: CallbackQuery, state: FSMContext):
 
 
 @default_router.callback_query(F.data == 'empty_cancel_reason', CancelTransaction.cancel_reason)
-async def empty_cancel_reason(call: CallbackQuery, state: FSMContext):
+async def empty_cancel_reason(call: CallbackQuery, state: FSMContext, scheduler):
 	await state.update_data(cancel_reason=None)
 
 	data = await state.get_data()
@@ -725,6 +742,10 @@ async def empty_cancel_reason(call: CallbackQuery, state: FSMContext):
 
 	await APIRequest.post("/transaction/update", {**transaction})
 	sum_to_withdraw = f'{transaction["amount"]:,}'.replace(',', ' ')
+
+	scheduler.add_job(send_message_about_ftransaction_to_user, trigger=IntervalTrigger(seconds=180), args=(None, sum_to_withdraw, transaction["partner_hash"], transaction['id'], scheduler), 
+	id=f'fsendtransac_{transaction["id"]}', replace_existing=True)
+
 
 	for admin in config.secrets.ADMINS_IDS:
 		await bot.send_message(chat_id=admin, text=f'''
@@ -741,7 +762,7 @@ async def empty_cancel_reason(call: CallbackQuery, state: FSMContext):
 
 
 @default_router.message(F.text, CancelTransaction.cancel_reason)
-async def empty_cancel_reaso_msgn(message: Message, state: FSMContext):
+async def empty_cancel_reaso_msgn(message: Message, state: FSMContext, scheduler):
 	await state.update_data(cancel_reason=message.text)
 
 	data = await state.get_data()
@@ -754,6 +775,9 @@ async def empty_cancel_reaso_msgn(message: Message, state: FSMContext):
 
 	await APIRequest.post("/transaction/update", {**transaction})
 	sum_to_withdraw = f'{transaction["amount"]:,}'.replace(',', ' ')
+
+	scheduler.add_job(send_message_about_ftransaction_to_user, trigger=IntervalTrigger(seconds=180), args=(message.text, sum_to_withdraw, transaction["partner_hash"], transaction['id'], scheduler), 
+	id=f'fsendtransac_{transaction["id"]}', replace_existing=True)
 
 	for admin in config.secrets.ADMINS_IDS:
 		await bot.send_message(chat_id=admin, text=f'''
