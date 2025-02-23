@@ -193,7 +193,7 @@ def create_online_statistics_markup():
 	builder = InlineKeyboardBuilder()
 
 	builder.row(
-		InlineKeyboardButton(text="Подключиться", url="https://t.me/testusername")
+		InlineKeyboardButton(text="Подключиться", url="https://t.me/sinwin_alerts_bot")
 	)
 	builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data="statistics"))
 
@@ -205,11 +205,6 @@ def create_online_statistics_markup():
 def create_mines_statistics_menu():
 	builder = InlineKeyboardBuilder()
 
-	builder.row(
-		InlineKeyboardButton(
-			text="За другой период", callback_data="mines_statistics_choose_period"
-		)
-	)
 	builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data="statistics"))
 
 	builder.adjust(1)
@@ -357,6 +352,19 @@ def create_withdraw_continue_markup(callback: str = "showmenu"):
 
 	builder.row(InlineKeyboardButton(text='✅ Подтвердить', callback_data='user_approve_card_withdraw'))
 	builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data=callback))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_support_transac_markup():
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(text="👨‍🦱 Поддержка", url="https://t.me/HelpSinWin")
+	)
+	builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data='profile'))
 
 	builder.adjust(1)
 

@@ -5,6 +5,10 @@ from hermes_langlib.storage import load_config as i18n_load_config
 
 from app.config import get_config, load_config
 from app.database._debug import UsersDebug
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+
+scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
 
 config = load_config(get_config("config.ini"))
 i18n_config = i18n_load_config("i18n.toml")

@@ -5,7 +5,7 @@ from loguru import logger
 
 from app import handlers, utils
 from app.api import APIRequest
-from app.loader import bot, config, dp
+from app.loader import bot, config, dp, scheduler
 
 from datetime import datetime, timedelta
 
@@ -44,7 +44,7 @@ async def main():
 	dp.include_routers(handlers.register_router)
 	dp.include_routers(handlers.default_router)
 
-	scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
+	scheduler.start()
 
 	dp.update.middleware(SchedulerMiddleware(scheduler=scheduler))
 

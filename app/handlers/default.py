@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 
 from aiogram import F, Router
 from aiogram.enums import ParseMode
@@ -9,7 +10,7 @@ from aiogram.types import CallbackQuery, Message
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.api import APIRequest
-from app.loader import config, bot
+from app.loader import config, bot, scheduler
 import app.keyboards.menu_inline as inline
 from app.database.test import users
 from app.utils.algorithms import is_valid_card
@@ -21,8 +22,8 @@ default_router = Router()
 alerts = True
 
 transactions_dict = {}
-transac_cancel_info = {}
-
+transactions_schedulded = {}
+withdraws_history = {}
 
 class CardWithdrawGroup(StatesGroup):
 	withdraw_sum = State()
@@ -44,25 +45,202 @@ class CancelTransaction(StatesGroup):
 	cancel_reason = State()
 
 
+async def collect_stats(opts: dict):
+	result, status = await APIRequest.post("/user/find", {"opts": opts})
+
+	# if opts.get('game', False):
+		#result_incomes, status2 = await APIRequest.get(f"/base/incomes?game={opts['game']}")
+		#incomes = result_incomes["income_stat"]
+		#postbacks = result_incomes["postbacks_stat"]
+
+	today = datetime.now().date()
+	yesterday = today - timedelta(days=1)
+	last_week_start = today - timedelta(days=today.weekday() + 7)
+	last_week_end = last_week_start + timedelta(days=6)
+	last_month_start = today - relativedelta(months=1)
+	last_month_end = last_month_start + relativedelta(day=31)
+
+	users = result["users"]
+
+	users_count = len(users)
+	users_income = sum([user["income"] for user in users])
+	users_notreg_count = len([user for user in users if not user["approved"]])
+	users_nottopup_count = len(
+		[user for user in users if user["balance"] < 500.0 and user["approved"]]
+	)
+	users_gamed_count = len(
+		[user for user in users if user["balance"] > 500.0 and user["approved"]]
+	)
+
+	users_today = [
+		user
+		for user in users
+		if datetime.strptime(user["register_date"], "%Y-%m-%dT%H:%M:%S").date() == today
+	]
+	users_yesterday = [
+		user
+		for user in users
+		if datetime.strptime(user["register_date"], "%Y-%m-%dT%H:%M:%S").date()
+		== yesterday
+	]
+	users_lastweek = [
+		user
+		for user in users
+		if last_week_start
+		<= datetime.strptime(user["register_date"], "%Y-%m-%dT%H:%M:%S").date()
+		<= last_week_end
+	]
+	users_month = [
+		user
+		for user in users
+		if last_month_start
+		<= datetime.strptime(user["register_date"], "%Y-%m-%dT%H:%M:%S").date()
+		<= last_month_end
+	]
+
+	users_today = len(users_today)
+	users_yesterday = len(users_yesterday)
+	users_lastweek = len(users_lastweek)
+	users_month = len(users_month)
+ 
+	return {
+		'users_count': users_count,
+		'users_today': users_today,
+		'users_yesterday': users_yesterday,
+		'users_lastweek': users_lastweek,
+		'users_month': users_month,
+		'users_notreg_count': users_notreg_count,
+		"users_nottopup_count": users_nottopup_count,
+		"users_gamed_count": users_gamed_count,
+		"users_income": users_income
+	}
+
+
 @default_router.callback_query(F.data == "statistics", only_confirmed)
 async def statistics_callback(call: CallbackQuery):
-	messages = [
-		"<b>СТАТИСТИКА ПО ВСЕМ БОТАМ</b>",
-		"<code>Пользователи которые запустили бота по вашим ссылкам</code>\n",
-		"💰️ Баланс: 0 RUB\n",
-		"Всего пользователей: n\nДепозиты за все время: n\nДоход за все время: n\nПервые депозиты за все время: n",
-		"Сгенерировано сигналов: n\n",
-		"Пользователей на этапе регистрации: n\nПользователей на этапе пополнения",
-		"Пользователей на этапе игры: n\n",
-		"Пользователей за сегодня: n\n├ Пользователей за вчера: n\n├ Пользователей за неделю: n",
-		"└ Пользователей за месяц: n\n",
-		"Сумма депозитов за сегодня: n\n├ Сумма депозитов за вчера: n\n├ Сумма депозитов за неделю: n",
-		"└ Сумма депозитов за месяц: n\n",
-		"Первые депозиты за сегодня: n\n├ Первые депозиты за вчера: n\n├ Первые депозиты за неделю: n",
-		"└ Первые депозиты за месяц: n\n",
-		"Доход за сегодня: n\n├ Доход за вчера: n\n├ Доход за неделю: n",
-		"└ Доход за месяц: n\n",
-	]
+	result, code = await APIRequest.get('/base/stats')
+
+	stats = result['data']
+
+	if call.from_user.id in config.secrets.ADMINS_IDS:
+		data = await collect_stats({})
+
+		today_deps = sum([dep['amount'] for dep in stats['today']['dep']])
+		yesterday_deps = sum([dep['amount'] for dep in stats['yesterday']['dep']])
+		last_week_deps = sum([dep['amount'] for dep in stats['last_week']['dep']])
+		last_month_deps = sum([dep['amount'] for dep in stats['last_month']['dep']])
+
+		today_firstdeps = sum([dep['amount'] for dep in stats['today']['firstdep']])
+		yesterday_firstdeps = sum([dep['amount'] for dep in stats['yesterday']['firstdep']])
+		last_week_firstdeps = sum([dep['amount'] for dep in stats['last_week']['firstdep']])
+		last_month_firstdeps = sum([dep['amount'] for dep in stats['last_month']['firstdep']])
+
+		today_income = sum([dep['income'] for dep in stats['today']['income']])
+		yesterday_income = sum([dep['income'] for dep in stats['yesterday']['income']])
+		last_week_income = sum([dep['income'] for dep in stats['last_week']['income']])
+		last_month_income = sum([dep['income'] for dep in stats['last_month']['income']])
+
+		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		alltime_firstdeps = today_firstdeps + yesterday_firstdeps + last_week_firstdeps + last_month_firstdeps
+
+		balance, status_code = await APIRequest.get("/base/admin_balance")
+
+		signals_gens = [[info[k] for k, _ in info.items()] for _, info in result['signals'].items()]
+		signals_gens = sum(sum(x) for x in signals_gens)
+
+		messages = [
+			"<b>СТАТИСТИКА ПО ВСЕМ БОТАМ</b>\n",
+			f"💰️ Баланс: {balance['balance']} RUB\n",
+			f"Всего пользователей: {data['users_count']}",
+			f"Депозиты за все время: {alltime_deps}",
+			f"Доход за все время: {data['users_income']}",
+			f"Первые депозиты за все время: {alltime_firstdeps}",
+			f"Сгенерировано сигналов: {signals_gens}\n",
+			f"Пользователей на этапе регистрации: {data['users_notreg_count']}",
+			f"Пользователей на этапе пополнения: {data['users_nottopup_count']}",
+			f"Пользователей на этапе игры: {data['users_gamed_count']}\n",
+			f"Пользователей за сегодня: {data['users_today']}",
+			f"├ Пользователей за вчера: {data['users_yesterday']}",
+			f"├ Пользователей за неделю: {data['users_lastweek']}",
+			f"└ Пользователей за месяц: {data['users_month']}\n",
+			f"Сумма депозитов за сегодня: {today_deps}",
+			f"├ Сумма депозитов за вчера: {yesterday_deps}",
+			f"├ Сумма депозитов за неделю: {last_week_deps}",
+			f"└ Сумма депозитов за месяц: {last_month_deps}\n",
+			f"Первые депозиты за сегодня: {today_firstdeps}",
+			f"├ Первые депозиты за вчера: {yesterday_firstdeps}",
+			f"├ Первые депозиты за неделю: {last_week_firstdeps}",
+			f"└ Первые депозиты за месяц: {last_month_firstdeps}\n",
+			f"Доход за сегодня: {today_income}",
+			f"├ Доход за вчера: {yesterday_income}",
+			f"├ Доход за неделю: {last_week_income}",
+			f"└ Доход за месяц: {last_month_income}",
+		]
+	else:
+		partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": call.from_user.id}})
+		partner = partners[0]['partners'][-1]
+
+		if not partner['approved']:
+			print(partner)
+			users[call.from_user.id] = users.get(call.from_user.id, {})
+			users[call.from_user.id]['final'] = False
+			await call.answer('Вы заблокированы')
+			return
+		
+		opts = {'referal_parent': partner["partner_hash"]}
+  
+		data = await collect_stats(opts)
+
+		today_deps = sum([dep['amount'] for dep in stats['today']['dep']])
+		yesterday_deps = sum([dep['amount'] for dep in stats['yesterday']['dep']])
+		last_week_deps = sum([dep['amount'] for dep in stats['last_week']['dep']])
+		last_month_deps = sum([dep['amount'] for dep in stats['last_month']['dep']])
+
+		today_firstdeps = sum([dep['amount'] for dep in stats['today']['firstdep']])
+		yesterday_firstdeps = sum([dep['amount'] for dep in stats['yesterday']['firstdep']])
+		last_week_firstdeps = sum([dep['amount'] for dep in stats['last_week']['firstdep']])
+		last_month_firstdeps = sum([dep['amount'] for dep in stats['last_month']['firstdep']])
+
+		today_income = sum([dep['x'] for dep in stats['today']['income']])
+		yesterday_income = sum([dep['x'] for dep in stats['yesterday']['income']])
+		last_week_income = sum([dep['x'] for dep in stats['last_week']['income']])
+		last_month_income = sum([dep['x'] for dep in stats['last_month']['income']])
+
+		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		alltime_firstdeps = today_firstdeps + yesterday_firstdeps + last_week_firstdeps + last_month_firstdeps
+		alltime_income = today_income + yesterday_income + last_week_income + last_month_income
+
+		signals_gens = sum([info[partner['partner_hash']] for _, info in result['signals'].items()])
+
+		messages = [
+			"<b>СТАТИСТИКА ПО ВСЕМ БОТАМ</b>",
+			"<code>Пользователи которые запустили бота по вашим ссылкам</code>\n",
+			f"💰️ Баланс: {partner['balance']} RUB\n",
+			f"Всего пользователей: {data['users_count']}",
+			f"Депозиты за все время: {alltime_deps}",
+			f"Доход за все время: {alltime_income}",
+			f"Первые депозиты за все время: {alltime_firstdeps}",
+			f"Сгенерировано сигналов: {signals_gens}\n",
+			f"Пользователей на этапе регистрации: {data['users_notreg_count']}",
+			f"Пользователей на этапе пополнения: {data['users_nottopup_count']}",
+			f"Пользователей на этапе игры: {data['users_gamed_count']}\n",
+			f"Пользователей за сегодня: {data['users_today']}",
+			f"├ Пользователей за вчера: {data['users_yesterday']}",
+			f"├ Пользователей за неделю: {data['users_lastweek']}",
+			f"└ Пользователей за месяц: {data['users_month']}\n",
+			f"Сумма депозитов за сегодня: {today_deps}",
+			f"├ Сумма депозитов за вчера: {yesterday_deps}",
+			f"├ Сумма депозитов за неделю: {last_week_deps}",
+			f"└ Сумма депозитов за месяц: {last_month_deps}\n",
+			f"Первые депозиты за сегодня: {today_firstdeps}",
+			f"├ Первые депозиты за вчера: {yesterday_firstdeps}",
+			f"├ Первые депозиты за неделю: {last_week_firstdeps}",
+			f"└ Первые депозиты за месяц: {last_month_firstdeps}\n",
+			f"Доход за сегодня: {today_income}",
+			f"├ Доход за вчера: {yesterday_income}",
+			f"├ Доход за неделю: {last_week_income}",
+			f"└ Доход за месяц: {last_month_income}",
+		]
 
 	await call.message.edit_text(
 		"\n".join(messages),
@@ -73,27 +251,129 @@ async def statistics_callback(call: CallbackQuery):
 
 @default_router.callback_query(F.data == "statistics_mines", only_confirmed)
 async def statistics_mines_callback(call: CallbackQuery):
-	messages = [
-		"<b>💣️СТАТИСТИКА ПО MINES</b>",
-		"<b>ЗА ВСЕ ВРЕМЯ</b>\n",
-		"┌ Баланс партнерки: n",
-		"├ Пользователей в партнерке всего: n",
-		"├ Баланс всех пользователей: n",
-		"├ Вывели с партнерки: n",
-		f"└ Поставлено на вывод {datetime.now()}: n\n",
-		"┌ Всего пользователей по всех ботах: n\n├ Депозиты: n\n├ Доход ботов: n\n├ Первые депозиты: n",
-		"└  Сгенерировано сигналов: n\n",
-		"Пользователей на этапе регистрации: n\n├ Пользователей на этапе пополнения",
-		"└ Пользователей на этапе игры: n\n",
-		"Пользователей за сегодня: n\n├ Пользователей за вчера: n\n├ Пользователей за неделю: n",
-		"└ Пользователей за месяц: n\n",
-		"Сумма депозитов за сегодня: n\n├ Сумма депозитов за вчера: n\n├ Сумма депозитов за неделю: n",
-		"└ Сумма депозитов за месяц: n\n",
-		"Первые депозиты за сегодня: n\n├ Первые депозиты за вчера: n\n├ Первые депозиты за неделю: n",
-		"└ Первые депозиты за месяц: n\n",
-		"Доход за сегодня: n\n├ Доход за вчера: n\n├ Доход за неделю: n",
-		"└ Доход за месяц: n\n",
-	]
+	result, code = await APIRequest.get('/base/stats')
+
+	stats = result['data']
+
+	if call.from_user.id in config.secrets.ADMINS_IDS:
+		data = await collect_stats({'game': 'Mines'})
+
+		today_deps = sum([dep['amount'] for dep in stats['today']['dep'] if dep['game'] == 'Mines'])
+		yesterday_deps = sum([dep['amount'] for dep in stats['yesterday']['dep'] if dep['game'] == 'Mines'])
+		last_week_deps = sum([dep['amount'] for dep in stats['last_week']['dep'] if dep['game'] == 'Mines'])
+		last_month_deps = sum([dep['amount'] for dep in stats['last_month']['dep'] if dep['game'] == 'Mines'])
+
+		today_firstdeps = sum([dep['amount'] for dep in stats['today']['firstdep'] if dep['game'] == 'Mines'])
+		yesterday_firstdeps = sum([dep['amount'] for dep in stats['yesterday']['firstdep'] if dep['game'] == 'Mines'])
+		last_week_firstdeps = sum([dep['amount'] for dep in stats['last_week']['firstdep'] if dep['game'] == 'Mines'])
+		last_month_firstdeps = sum([dep['amount'] for dep in stats['last_month']['firstdep'] if dep['game'] == 'Mines'])
+
+		today_income = sum([dep['income'] for dep in stats['today']['income'] if dep['game'] == 'Mines'])
+		yesterday_income = sum([dep['income'] for dep in stats['yesterday']['income'] if dep['game'] == 'Mines'])
+		last_week_income = sum([dep['income'] for dep in stats['last_week']['income'] if dep['game'] == 'Mines'])
+		last_month_income = sum([dep['income'] for dep in stats['last_month']['income'] if dep['game'] == 'Mines'])
+
+		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		alltime_firstdeps = today_firstdeps + yesterday_firstdeps + last_week_firstdeps + last_month_firstdeps
+
+		signals_gens = [[info[k] for k, _ in info.items()] for name, info in result['signals'].items() if name == 'Mines']
+		signals_gens = sum(sum(x) for x in signals_gens)
+
+		balance, status_code = await APIRequest.get("/base/admin_balance")
+
+		messages = [
+			"<b>💣️ СТАТИСТИКА ПО MINES</b>\n",
+			f"💰️ Баланс: {balance['balance']} RUB\n",
+			f"Всего пользователей: {data['users_count']}",
+			f"Депозиты за все время: {alltime_deps}",
+			f"Доход за все время: {data['users_income']}",
+			f"Первые депозиты за все время: {alltime_firstdeps}",
+			f"Сгенерировано сигналов: {signals_gens}\n",
+			f"Пользователей на этапе регистрации: {data['users_notreg_count']}",
+			f"Пользователей на этапе пополнения: {data['users_nottopup_count']}",
+			f"Пользователей на этапе игры: {data['users_gamed_count']}\n",
+			f"Пользователей за сегодня: {data['users_today']}",
+			f"├ Пользователей за вчера: {data['users_yesterday']}",
+			f"├ Пользователей за неделю: {data['users_lastweek']}",
+			f"└ Пользователей за месяц: {data['users_month']}\n",
+			f"Сумма депозитов за сегодня: {today_deps}",
+			f"├ Сумма депозитов за вчера: {yesterday_deps}",
+			f"├ Сумма депозитов за неделю: {last_week_deps}",
+			f"└ Сумма депозитов за месяц: {last_month_deps}\n",
+			f"Первые депозиты за сегодня: {today_firstdeps}",
+			f"├ Первые депозиты за вчера: {yesterday_firstdeps}",
+			f"├ Первые депозиты за неделю: {last_week_firstdeps}",
+			f"└ Первые депозиты за месяц: {last_month_firstdeps}\n",
+			f"Доход за сегодня: {today_income}",
+			f"├ Доход за вчера: {yesterday_income}",
+			f"├ Доход за неделю: {last_week_income}",
+			f"└ Доход за месяц: {last_month_income}",
+		]
+	else:
+		partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": call.from_user.id}})
+		partner = partners[0]['partners'][-1]
+
+		if not partner['approved']:
+			print(partner)
+			users[call.from_user.id] = users.get(call.from_user.id, {})
+			users[call.from_user.id]['final'] = False
+			await call.answer('Вы заблокированы')
+			return
+		
+		opts = {'game': 'Mines', 'referal_parent': partner["partner_hash"]}
+  
+		data = await collect_stats(opts)
+
+		today_deps = sum([dep['amount'] for dep in stats['today']['dep'] if dep['game'] == 'Mines'])
+		yesterday_deps = sum([dep['amount'] for dep in stats['yesterday']['dep'] if dep['game'] == 'Mines'])
+		last_week_deps = sum([dep['amount'] for dep in stats['last_week']['dep'] if dep['game'] == 'Mines'])
+		last_month_deps = sum([dep['amount'] for dep in stats['last_month']['dep'] if dep['game'] == 'Mines'])
+
+		today_firstdeps = sum([dep['amount'] for dep in stats['today']['firstdep'] if dep['game'] == 'Mines'])
+		yesterday_firstdeps = sum([dep['amount'] for dep in stats['yesterday']['firstdep'] if dep['game'] == 'Mines'])
+		last_week_firstdeps = sum([dep['amount'] for dep in stats['last_week']['firstdep'] if dep['game'] == 'Mines'])
+		last_month_firstdeps = sum([dep['amount'] for dep in stats['last_month']['firstdep'] if dep['game'] == 'Mines'])
+
+		today_income = sum([dep['x'] for dep in stats['today']['income'] if dep['game'] == 'Mines'])
+		yesterday_income = sum([dep['x'] for dep in stats['yesterday']['income'] if dep['game'] == 'Mines'])
+		last_week_income = sum([dep['x'] for dep in stats['last_week']['income'] if dep['game'] == 'Mines'])
+		last_month_income = sum([dep['x'] for dep in stats['last_month']['income'] if dep['game'] == 'Mines'])
+
+		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		alltime_firstdeps = today_firstdeps + yesterday_firstdeps + last_week_firstdeps + last_month_firstdeps
+		alltime_income = today_income + yesterday_income + last_week_income + last_month_income
+
+		signals_gens = sum([info[partner['partner_hash']] for _, info in result['signals'].items()])
+
+		messages = [
+			"<b>💣️ СТАТИСТИКА ПО MINES</b>",
+			"<code>Пользователи которые запустили бота по вашим ссылкам</code>\n",
+			f"💰️ Баланс: {partner['balance']} RUB\n",
+			f"Всего пользователей: {data['users_count']}",
+			f"Депозиты за все время: {alltime_deps}",
+			f"Доход за все время: {alltime_income}",
+			f"Первые депозиты за все время: {alltime_firstdeps}",
+			f"Сгенерировано сигналов: {signals_gens}\n",
+			f"Пользователей на этапе регистрации: {data['users_notreg_count']}",
+			f"Пользователей на этапе пополнения: {data['users_nottopup_count']}",
+			f"Пользователей на этапе игры: {data['users_gamed_count']}\n",
+			f"Пользователей за сегодня: {data['users_today']}",
+			f"├ Пользователей за вчера: {data['users_yesterday']}",
+			f"├ Пользователей за неделю: {data['users_lastweek']}",
+			f"└ Пользователей за месяц: {data['users_month']}\n",
+			f"Сумма депозитов за сегодня: {today_deps}",
+			f"├ Сумма депозитов за вчера: {yesterday_deps}",
+			f"├ Сумма депозитов за неделю: {last_week_deps}",
+			f"└ Сумма депозитов за месяц: {last_month_deps}\n",
+			f"Первые депозиты за сегодня: {today_firstdeps}",
+			f"├ Первые депозиты за вчера: {yesterday_firstdeps}",
+			f"├ Первые депозиты за неделю: {last_week_firstdeps}",
+			f"└ Первые депозиты за месяц: {last_month_firstdeps}\n",
+			f"Доход за сегодня: {today_income}",
+			f"├ Доход за вчера: {yesterday_income}",
+			f"├ Доход за неделю: {last_week_income}",
+			f"└ Доход за месяц: {last_month_income}",
+		]
 
 	await call.message.edit_text(
 		"\n".join(messages),
@@ -291,14 +571,67 @@ async def adminpanel_callback(call: CallbackQuery):
 @default_router.callback_query(F.data == "top_workers", only_confirmed)
 async def top_workers_callback(call: CallbackQuery):
 	# 🥇🥈🥉🏅
+	result, code = await APIRequest.get('/base/stats?exclude=1')
+
+	stats = result['data']
+	income = stats['last_month']['income'] + stats['today']['income'] + stats['last_week']['income'] + stats['yesterday']['income']
+
+	userp = None
+	status = False
+	state = 0
+
+	partners = {}
+
+	if call.from_user.id not in config.secrets.ADMINS_IDS:
+		result = await APIRequest.post("/partner/find", {"opts": {"tg_id": call.from_user.id}})
+		user = result[0]['partners']
+
+		if user:
+			user = user[-1]
+			userp = user['partner_hash']
+		else:
+			await call.answer('Вы заблокированы')
+			return
+
+	print(income)
+
+	for partner in income:
+		partner_hash = partner['partner_hash']
+		if userp == partner_hash:
+			status = True
+
+		partners[partner_hash] = partner['x']
+	
+	partners = dict(sorted(partners.items(), key=lambda item: item[1], reverse=True))
+
+	partners = dict(list(partners.items())[:5])
+
+	if status:
+		state = list(partners).index(userp) + 1
+
 	messages = [
-		"🏆️ Топ воркеров по доходу за последний месяц\n",
-		"<code>🥇 WOT****3156: 1 000 000 рублей</code>",
-		"🥈 RNP****6871: 800 000 рублей",
-		"🥉 RNP****8165: 700 000 рублей",
-		"🏅 WOK****2899: 600 000 рублей",
-		"🏅 WOI****9437: 450 000 рублей\n",
-		"👽️ Ваша позиция в топе: 10\n",
+		"🏆️ Топ воркеров по доходу за последний месяц",
+	]
+
+	for i, (partner_hash, income) in enumerate(partners.items()):
+		messages.append('')
+		partner_hash = partner_hash[:3] + '****' + partner_hash[7:]
+
+		if i == 0:
+			messages.append(f'🥇 {partner_hash}: {income} рублей')
+		elif i == 1:
+			messages.append(f'🥈 {partner_hash}: {income} рублей')
+		elif i == 3:
+			messages.append(f'🥉 {partner_hash}: {income} рублей')
+		else:
+			messages.append(f'🏅 {partner_hash}: {income} рублей')
+	
+	if status:
+		messages.append(f"👽️ Ваша позиция в топе: {state}\n")
+	else:
+		messages.append("")
+
+	messages += [
 		"📅 Статистика обнуляется 1 числа каждого месяца.\n",
 		'<code>👑 Пользователь, занявший первое место, повышается в статусе, если его текущий статус "Профессионал" или ниже.</code>',
 		"<code>💵 Второе и третье места получают премию.</code>\n\n"
@@ -315,15 +648,32 @@ async def top_workers_callback(call: CallbackQuery):
 @default_router.callback_query(F.data == "withdraws_history", only_confirmed)
 async def withdraws_history_callback(call: CallbackQuery):
 	# 🟢🟡⚪️
-	messages = [
-		"🤖 История выводов: 3",
-		"🟢 - Вывод произведен",
-		"├ 18:07 27.12.2024: 10 000: 💳️ Карта",
-		"🟢 - Вывод произведен",
-		"├ 15:07 21.12.2024: 2 000: ⚙️ Steam",
-		"🟢 - Вывод произведен",
-		"└ 16:27 04.11.2024: 5 000: 📱 Вывод по номеру\n",
-	]
+	result = await APIRequest.post("/partner/find", {"opts": {"tg_id": call.from_user.id}})
+	user = result[0]['partners']
+
+	if not user:
+		await call.answer('Вы заблокированы')
+		return
+
+	user = user[-1]
+
+	# data = withdraws_history.get(partner_hash, {})
+	# data[transaction_id] = {
+	# 	'status': '⚪️ Вывод на обработке',
+	# 	'type': '💳 Карта',
+	# 	'sum': data['withdraw_sum'],
+	# 	'date': datetime.now()
+	# }
+	# withdraws_history[partner_hash] = data
+
+	if not withdraws_history.get(user['partner_hash'], False):
+		messages = ["🤖 История выводов: 0"]
+	else:
+		withdraws = withdraws_history.get(user['partner_hash'])
+		messages = [f"🤖 История выводов: {len(withdraws)}"]
+
+		for _, data in withdraws.items():
+			messages.append(f'{data["status"]}\n├ {data["date"]}: {data["sum"]}: {data["type"]}')
 
 	await call.message.edit_text(
 		"\n".join(messages),
@@ -338,20 +688,20 @@ async def status_levels_callback(call: CallbackQuery):
 	messages = [
 		"1. Новичок: 35 %\nУсловия для перехода:",
 		"❌ Доход за последний месяц: не менее 50 000 рублей",
-		"✅ Общий доход за все время: не менее 100 000 рублей",
-		"✅ Первые депозиты за последний месяц: не менее 100\n",
+		"❌ Общий доход за все время: не менее 100 000 рублей",
+		"❌ Первые депозиты за последний месяц: не менее 100\n",
 		"2. Специалист 40 %",
 		"❌ Доход за последний месяц: не менее 150 000 рублей",
-		"✅ Общий доход за все время: не менее 300 000 рублей",
-		"✅ Первые депозиты за последний месяц: не менее 200\n",
+		"❌ Общий доход за все время: не менее 300 000 рублей",
+		"❌ Первые депозиты за последний месяц: не менее 200\n",
 		"3. Профессионал 45 %",
 		"❌ Доход за последний месяц: не менее 300 000 рублей",
-		"✅ Общий доход за все время: не менее 600 000 рублей",
+		"❌ Общий доход за все время: не менее 600 000 рублей",
 		"✅ Первые депозиты за последний месяц: не менее 400\n",
 		"4. Мастер 50%",
 		"❌ Доход за последний месяц: не менее 500 000 рублей",
-		"✅ Общий доход за все время: не менее 1 000 000 рублей",
-		"✅ Первые депозиты за последний месяц: не менее 600\n",
+		"❌ Общий доход за все время: не менее 1 000 000 рублей",
+		"❌ Первые депозиты за последний месяц: не менее 600\n",
 		"5. Легенда Суб Партнерство\n",
 		'Суб партнерство подключается вручную. Пользователь регистрируется в официальной партнерской программе 1 Win через нашу ссылку. Создает свою уникальную ссылку для приглашения, которую мы интегрируем в нашего бота. Пользователь получает от 50% до 60% прибыли через официальную партнерскую программу. Иногда статус "Легенда" подключается вместо статуса "Мастер".\n',
 		"<code>Условия перехода могут изменяться</code>",
@@ -369,7 +719,7 @@ async def statistics_online_callback(call: CallbackQuery):
 	# ✨📊💰️🎮️
 	messages = [
 		"✨ Статистика в реальном времени\n",
-		"Следите за всей активностью мнговенно! Нажмите, чтобы перейти в бота @testusername, и получайте:",
+		"Следите за всей активностью мнговенно! Нажмите, чтобы перейти в бота @sinwin_alerts_bot, и получайте:",
 		"📊 Уведомления о регистрации новых пользователей.",
 		"💰️ Информацию о депозитах.",
 		"🎮️ Данные по каждой игре ваших пользователей",
@@ -635,6 +985,16 @@ async def user_approve_card_withdraw(call: CallbackQuery, state: FSMContext):
 
 	await call.message.edit_text(f'Ваш запрос на вывод средств поставлен в очередь.\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transaction_id}\n\nВ течение 24 часов бот уведомит вас о статусе вывода. Если за это время вы не получите уведомление, пожалуйста, обратитесь в поддержку.', reply_markup=inline.create_back_markup("profile"))
 
+
+	tdata = withdraws_history.get(partner_hash, {})
+	tdata[transaction_id] = {
+		'status': '⚪️ Вывод на обработке',
+		'type': '💳 Карта',
+		'sum': data['withdraw_sum'],
+		'date': datetime.now()
+	}
+	withdraws_history[partner_hash] = tdata
+
 	transactions_dict[transaction_id] = data
 
 	for admin in config.secrets.ADMINS_IDS:
@@ -653,9 +1013,23 @@ async def send_message_about_transaction_to_user(sum_to_withdraw, partner_hash: 
 	partners = await APIRequest.post("/partner/find", {"opts": {"partner_hash": partner_hash}})
 	partner = partners[0]['partners'][-1]
 
+	transactions = await APIRequest.post("/transaction/find", {"opts": {"id": transaction_id}})
+	transac = transactions[0]['transactions'][-1]
+
 	scheduler.remove_job(f'sendtransac_{transaction_id}')
 
-	partner['balance'] -= sum_to_withdraw
+	partner['balance'] -= int(sum_to_withdraw.replace(' ', ''))
+
+	transactions_schedulded[transaction_id] = False
+
+	tdata = withdraws_history.get(partner_hash, {})
+	tdata[transaction_id] = {
+		'status': '🟢 Вывод произведен',
+		'type': '💳 Карта',
+		'sum': transac['amount'],
+		'date': datetime.now()
+	}
+	withdraws_history[partner_hash] = tdata
 
 	await APIRequest.post("/partner/update", {**partner})
 
@@ -663,12 +1037,27 @@ async def send_message_about_transaction_to_user(sum_to_withdraw, partner_hash: 
 
 
 async def send_message_about_ftransaction_to_user(reason, sum_to_withdraw, partner_hash: str, transaction_id: int, scheduler):
+	#🟢🟡⚪️
 	partners = await APIRequest.post("/partner/find", {"opts": {"partner_hash": partner_hash}})
 	partner = partners[0]['partners'][-1]
 
+	transactions = await APIRequest.post("/transaction/find", {"opts": {"id": transaction_id}})
+	transac = transactions[0]['transactions'][-1]
+
 	scheduler.remove_job(f'fsendtransac_{transaction_id}')
 
-	reason = f'Причина отказа: {reason}' if reason is not None else reason
+	transactions_schedulded[transaction_id] = False
+
+	tdata = withdraws_history.get(partner_hash, {})
+	tdata[transaction_id] = {
+		'status': '🟡 Вывод отклонен',
+		'type': '💳 Карта',
+		'sum': transac['amount'],
+		'date': datetime.now()
+	}
+	withdraws_history[partner_hash] = tdata
+
+	reason = f'Причина отказа: {reason}\n' if reason is not None else reason
 
 	await bot.send_message(chat_id=partner["tg_id"], text=f'''
 ❌ Ваш запрос на вывод средств был отклонен.
@@ -677,16 +1066,21 @@ async def send_message_about_ftransaction_to_user(reason, sum_to_withdraw, partn
 🆔 ID Вывода: {transaction_id}
 {reason if reason is not None else ""}
 Пожалуйста, свяжитесь с поддержкой для получения дополнительной информации.	
-''', reply_markup=inline.create_back_markup('profile'))
+''', reply_markup=inline.create_support_transac_markup())
 
 
 
 @default_router.callback_query(F.data.startswith('badmin_approve_transaction'))
-async def admin_approve_transaction(call: CallbackQuery, scheduler):
+async def admin_approve_transaction(call: CallbackQuery, scheduler = scheduler):
 	transaction_id = int(call.data.replace('badmin_approve_transaction', '').split('_')[0])
+	await call.answer()
 
-	transactions = await APIRequest.post("/transaction/find", {"id": transaction_id})
-	transaction = transactions[0]['partners'][-1]
+	transactions = await APIRequest.post("/transaction/find", {"opts": {"id": transaction_id}})
+	transaction = transactions[0]['transactions'][-1]
+
+	if transactions_schedulded.get(transaction["id"], False):
+		await call.answer(f'Транзакция {transaction["id"]} уже обработана другим администратором')
+		return
 
 	transaction['approved'] = True
 
@@ -709,13 +1103,17 @@ async def admin_approve_transaction(call: CallbackQuery, scheduler):
 Карта: <code>{data["withdraw_card"]}</code>''', parse_mode=ParseMode.HTML, reply_markup=inline.admin_change_transaction(transaction_id))
 
 
-@default_router.callback_query(F.data.startswith('badmin_dispprove_transaction'))
+@default_router.callback_query(F.data.startswith('badmin_disapprove_transaction'))
 async def badmin_dispprove_transaction(call: CallbackQuery, state: FSMContext):
-	transaction_id = int(call.data.replace('badmin_dispprove_transaction', '').split('_')[0])
+	transaction_id = int(call.data.replace('badmin_disapprove_transaction', '').split('_')[0])
 	admin_id = call.data.split('_')[-1]
 
-	transactions = await APIRequest.post("/transaction/find", {"id": transaction_id})
+	transactions = await APIRequest.post("/transaction/find", {"opts": {"id": transaction_id}})
 	transaction = transactions[0]['transactions'][-1]
+
+	if transactions_schedulded.get(transaction["id"], False):
+		await call.answer(f'Транзакция {transaction["id"]} уже обработана другим администратором')
+		return
 
 	transaction['approved'] = True
 
@@ -729,19 +1127,23 @@ async def badmin_dispprove_transaction(call: CallbackQuery, state: FSMContext):
 
 
 @default_router.callback_query(F.data == 'empty_cancel_reason', CancelTransaction.cancel_reason)
-async def empty_cancel_reason(call: CallbackQuery, state: FSMContext, scheduler):
+async def empty_cancel_reason(call: CallbackQuery, state: FSMContext, scheduler = scheduler):
 	await state.update_data(cancel_reason=None)
 
 	data = await state.get_data()
 	data = data['transac']
 
-	transactions = await APIRequest.post("/transaction/find", {"id": data['id']})
+	transactions = await APIRequest.post("/transaction/find", {"opts": {"id": data['id']}})
 	transaction = transactions[0]['transactions'][-1]
 
 	transaction['approved'] = False
 
 	await APIRequest.post("/transaction/update", {**transaction})
 	sum_to_withdraw = f'{transaction["amount"]:,}'.replace(',', ' ')
+
+	if transactions_schedulded.get(transaction["id"], False):
+		await call.answer(f'Транзакция {transaction["id"]} уже обработана другим администратором')
+		return
 
 	scheduler.add_job(send_message_about_ftransaction_to_user, trigger=IntervalTrigger(seconds=180), args=(None, sum_to_withdraw, transaction["partner_hash"], transaction['id'], scheduler), 
 	id=f'fsendtransac_{transaction["id"]}', replace_existing=True)
@@ -762,14 +1164,18 @@ async def empty_cancel_reason(call: CallbackQuery, state: FSMContext, scheduler)
 
 
 @default_router.message(F.text, CancelTransaction.cancel_reason)
-async def empty_cancel_reaso_msgn(message: Message, state: FSMContext, scheduler):
+async def empty_cancel_reaso_msgn(message: Message, state: FSMContext, scheduler=scheduler):
 	await state.update_data(cancel_reason=message.text)
 
 	data = await state.get_data()
 	data = data['transac']
 
-	transactions = await APIRequest.post("/transaction/find", {"id": data['id']})
+	transactions = await APIRequest.post("/transaction/find", {"opts": {"id": data['id']}})
 	transaction = transactions[0]['transactions'][-1]
+
+	if transactions_schedulded.get(transaction["id"], False):
+		await message.answer(f'Транзакция {transaction["id"]} уже обработана другим администратором')
+		return
 
 	transaction['approved'] = False
 
@@ -798,8 +1204,12 @@ async def empty_cancel_reaso_msgn(message: Message, state: FSMContext, scheduler
 async def change_transaction_status(call: CallbackQuery):
 	transaction_id = int(call.data.replace('change_transaction_status', ''))
 
-	transactions = await APIRequest.post("/transaction/find", {"opts": {"tg_id": call.from_user.id}})
-	transaction = transactions[0]['partners'][-1]
+	transactions = await APIRequest.post("/transaction/find", {"opts": {"id": transaction_id}})
+	transaction = transactions[0]['transactions'][-1]
+
+	if transactions_schedulded.get(transaction["id"], False):
+		await call.answer(f'Транзакция {transaction["id"]} уже обработана другим администратором')
+		return
 
 	partners = await APIRequest.post("/partner/find", {"opts": {"partner_hash": transaction['partner_hash']}})
 	partner = partners[0]['partners'][-1]
