@@ -142,6 +142,7 @@ async def statistics_callback(call: CallbackQuery):
 
 		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
 		alltime_firstdeps = today_firstdeps + yesterday_firstdeps + last_week_firstdeps + last_month_firstdeps
+		alltime_income = today_income + yesterday_income + last_week_income + last_month_income
 
 		balance, status_code = await APIRequest.get("/base/admin_balance")
 
@@ -153,7 +154,7 @@ async def statistics_callback(call: CallbackQuery):
 			f"💰️ Баланс: {balance['balance']} RUB\n",
 			f"Всего пользователей: {data['users_count']}",
 			f"Депозиты за все время: {alltime_deps}",
-			f"Доход за все время: {data['users_income']}",
+			f"Доход за все время: {alltime_income}",
 			f"Первые депозиты за все время: {alltime_firstdeps}",
 			f"Сгенерировано сигналов: {signals_gens}\n",
 			f"Пользователей на этапе регистрации: {data['users_notreg_count']}",
@@ -181,7 +182,6 @@ async def statistics_callback(call: CallbackQuery):
 		partner = partners[0]['partners'][-1]
 
 		if not partner['approved']:
-			print(partner)
 			users[call.from_user.id] = users.get(call.from_user.id, {})
 			users[call.from_user.id]['final'] = False
 			await call.answer('Вы заблокированы')
@@ -191,20 +191,20 @@ async def statistics_callback(call: CallbackQuery):
   
 		data = await collect_stats(opts)
 
-		today_deps = sum([dep['amount'] for dep in stats['today']['dep']])
-		yesterday_deps = sum([dep['amount'] for dep in stats['yesterday']['dep']])
-		last_week_deps = sum([dep['amount'] for dep in stats['last_week']['dep']])
-		last_month_deps = sum([dep['amount'] for dep in stats['last_month']['dep']])
+		today_deps = sum([dep['amount'] for dep in stats['today']['dep'] if dep['partner_hash'] == partner["partner_hash"]])
+		yesterday_deps = sum([dep['amount'] for dep in stats['yesterday']['dep'] if dep['partner_hash'] == partner["partner_hash"]])
+		last_week_deps = sum([dep['amount'] for dep in stats['last_week']['dep'] if dep['partner_hash'] == partner["partner_hash"]])
+		last_month_deps = sum([dep['amount'] for dep in stats['last_month']['dep'] if dep['partner_hash'] == partner["partner_hash"]])
 
-		today_firstdeps = sum([dep['amount'] for dep in stats['today']['firstdep']])
-		yesterday_firstdeps = sum([dep['amount'] for dep in stats['yesterday']['firstdep']])
-		last_week_firstdeps = sum([dep['amount'] for dep in stats['last_week']['firstdep']])
-		last_month_firstdeps = sum([dep['amount'] for dep in stats['last_month']['firstdep']])
+		today_firstdeps = sum([dep['amount'] for dep in stats['today']['firstdep'] if dep['partner_hash'] == partner["partner_hash"]])
+		yesterday_firstdeps = sum([dep['amount'] for dep in stats['yesterday']['firstdep'] if dep['partner_hash'] == partner["partner_hash"]])
+		last_week_firstdeps = sum([dep['amount'] for dep in stats['last_week']['firstdep'] if dep['partner_hash'] == partner["partner_hash"]])
+		last_month_firstdeps = sum([dep['amount'] for dep in stats['last_month']['firstdep'] if dep['partner_hash'] == partner["partner_hash"]])
 
-		today_income = sum([dep['x'] for dep in stats['today']['income']])
-		yesterday_income = sum([dep['x'] for dep in stats['yesterday']['income']])
-		last_week_income = sum([dep['x'] for dep in stats['last_week']['income']])
-		last_month_income = sum([dep['x'] for dep in stats['last_month']['income']])
+		today_income = sum([dep['x'] for dep in stats['today']['income'] if dep['partner_hash'] == partner["partner_hash"]])
+		yesterday_income = sum([dep['x'] for dep in stats['yesterday']['income'] if dep['partner_hash'] == partner["partner_hash"]])
+		last_week_income = sum([dep['x'] for dep in stats['last_week']['income'] if dep['partner_hash'] == partner["partner_hash"]])
+		last_month_income = sum([dep['x'] for dep in stats['last_month']['income'] if dep['partner_hash'] == partner["partner_hash"]])
 
 		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
 		alltime_firstdeps = today_firstdeps + yesterday_firstdeps + last_week_firstdeps + last_month_firstdeps
@@ -275,6 +275,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 
 		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
 		alltime_firstdeps = today_firstdeps + yesterday_firstdeps + last_week_firstdeps + last_month_firstdeps
+		alltime_income = today_income + yesterday_income + last_week_income + last_month_income
 
 		signals_gens = [[info[k] for k, _ in info.items()] for name, info in result['signals'].items() if name == 'Mines']
 		signals_gens = sum(sum(x) for x in signals_gens)
@@ -286,7 +287,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 			f"💰️ Баланс: {balance['balance']} RUB\n",
 			f"Всего пользователей: {data['users_count']}",
 			f"Депозиты за все время: {alltime_deps}",
-			f"Доход за все время: {data['users_income']}",
+			f"Доход за все время: {alltime_income}",
 			f"Первые депозиты за все время: {alltime_firstdeps}",
 			f"Сгенерировано сигналов: {signals_gens}\n",
 			f"Пользователей на этапе регистрации: {data['users_notreg_count']}",
@@ -324,20 +325,20 @@ async def statistics_mines_callback(call: CallbackQuery):
   
 		data = await collect_stats(opts)
 
-		today_deps = sum([dep['amount'] for dep in stats['today']['dep'] if dep['game'] == 'Mines'])
-		yesterday_deps = sum([dep['amount'] for dep in stats['yesterday']['dep'] if dep['game'] == 'Mines'])
-		last_week_deps = sum([dep['amount'] for dep in stats['last_week']['dep'] if dep['game'] == 'Mines'])
-		last_month_deps = sum([dep['amount'] for dep in stats['last_month']['dep'] if dep['game'] == 'Mines'])
+		today_deps = sum([dep['amount'] for dep in stats['today']['dep'] if dep['game'] == 'Mines' and dep['partner_hash'] == partner['partner_hash']])
+		yesterday_deps = sum([dep['amount'] for dep in stats['yesterday']['dep'] if dep['game'] == 'Mines' and dep['partner_hash'] == partner['partner_hash']])
+		last_week_deps = sum([dep['amount'] for dep in stats['last_week']['dep'] if dep['game'] == 'Mines' and dep['partner_hash'] == partner['partner_hash']])
+		last_month_deps = sum([dep['amount'] for dep in stats['last_month']['dep'] if dep['game'] == 'Mines' and dep['partner_hash'] == partner['partner_hash']])
 
-		today_firstdeps = sum([dep['amount'] for dep in stats['today']['firstdep'] if dep['game'] == 'Mines'])
-		yesterday_firstdeps = sum([dep['amount'] for dep in stats['yesterday']['firstdep'] if dep['game'] == 'Mines'])
-		last_week_firstdeps = sum([dep['amount'] for dep in stats['last_week']['firstdep'] if dep['game'] == 'Mines'])
-		last_month_firstdeps = sum([dep['amount'] for dep in stats['last_month']['firstdep'] if dep['game'] == 'Mines'])
+		today_firstdeps = sum([dep['amount'] for dep in stats['today']['firstdep'] if dep['game'] == 'Mines' and dep['partner_hash'] == partner['partner_hash']])
+		yesterday_firstdeps = sum([dep['amount'] for dep in stats['yesterday']['firstdep'] if dep['game'] == 'Mines' and dep['partner_hash'] == partner['partner_hash']])
+		last_week_firstdeps = sum([dep['amount'] for dep in stats['last_week']['firstdep'] if dep['game'] == 'Mines' and dep['partner_hash'] == partner['partner_hash']])
+		last_month_firstdeps = sum([dep['amount'] for dep in stats['last_month']['firstdep'] if dep['game'] == 'Mines' and dep['partner_hash'] == partner['partner_hash']])
 
-		today_income = sum([dep['x'] for dep in stats['today']['income'] if dep['game'] == 'Mines'])
-		yesterday_income = sum([dep['x'] for dep in stats['yesterday']['income'] if dep['game'] == 'Mines'])
-		last_week_income = sum([dep['x'] for dep in stats['last_week']['income'] if dep['game'] == 'Mines'])
-		last_month_income = sum([dep['x'] for dep in stats['last_month']['income'] if dep['game'] == 'Mines'])
+		today_income = sum([dep['x'] for dep in stats['today']['income'] if dep['game'] == 'Mines' and dep['partner_hash'] == partner['partner_hash']])
+		yesterday_income = sum([dep['x'] for dep in stats['yesterday']['income'] if dep['game'] == 'Mines' and dep['partner_hash'] == partner['partner_hash']])
+		last_week_income = sum([dep['x'] for dep in stats['last_week']['income'] if dep['game'] == 'Mines' and dep['partner_hash'] == partner['partner_hash']])
+		last_month_income = sum([dep['x'] for dep in stats['last_month']['income'] if dep['game'] == 'Mines' and dep['partner_hash'] == partner['partner_hash']])
 
 		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
 		alltime_firstdeps = today_firstdeps + yesterday_firstdeps + last_week_firstdeps + last_month_firstdeps
@@ -733,23 +734,98 @@ async def statistics_online_callback(call: CallbackQuery):
 	)
 
 
+def get_percent_by_status(status: str) -> float:
+	"""
+	Gets the percent by status.
+
+	:param		status:	 The status
+	:type		status:	 str
+
+	:returns:	The percent by status.
+	:rtype:		float
+	"""
+	status = status.lower()
+
+	match status:
+		case "новичок":
+			return 0.35
+		case "специалист":
+			return 0.40
+		case "профессионал":
+			return 0.45
+		case "мастер":
+			return 0.50
+		case "легенда":
+			return 0.60
+		case _:
+			return 0.35
+
+
 @default_router.callback_query(F.data == "status", only_confirmed)
 async def status_callback(call: CallbackQuery):
 	# ❌✅🏆️📊🎯💼💰️
-	messages = [
-		"🏆️ Ваш текущий статус: Новичок",
-		"🎯 Вы получаете: 35%\n",
-		"📊 Ваш доход за последний месяц: 15 000 RUB",
-		"💼 Общий доход: 100 000 RUB",
-		"💰️ Первые депозиты за последний месяц: 100\n",
-		"Условия для перехода:",
-		"❌ Доход за последний месяц: не менее 50 000 рублей",
-		"✅ Общий доход за все время: не менее 100 000 рублей",
-		"✅ Первые депозиты за последний месяц: не менее 100\n",
-		"Продолжайте в том же духе! Чем дольше и лучше вы работаете, тем больше вы зарабатывайте! Переход на новый уровень происходит автоматически каждые 24 часа, если все условия выполнены.",
-		"\n<code>Обратите внимание: условия перехода могут меняться.</code>\n",
-		"Если у вас есть вопросы, напишите в поддержку",
-	]
+	result, code = await APIRequest.get('/base/stats')
+
+	stats = result['data']
+
+	if call.from_user.id in config.secrets.ADMINS_IDS:
+		messages = [
+			"🏆️ Ваш текущий статус: администратор",
+			"🎯 Вы получаете: 35%\n",
+			"📊 Ваш доход за последний месяц: 15 000 RUB",
+			"💼 Общий доход: 100 000 RUB",
+			"💰️ Первые депозиты за последний месяц: 100\n",
+			"Условия для перехода:",
+			"❌ Доход за последний месяц: не менее 50 000 рублей",
+			"✅ Общий доход за все время: не менее 100 000 рублей",
+			"✅ Первые депозиты за последний месяц: не менее 100\n",
+			"Продолжайте в том же духе! Чем дольше и лучше вы работаете, тем больше вы зарабатывайте! Переход на новый уровень происходит автоматически каждые 24 часа, если все условия выполнены.",
+			"\n<code>Обратите внимание: условия перехода могут меняться.</code>\n",
+			"Если у вас есть вопросы, напишите в поддержку",
+		]
+	else:
+		partners = await APIRequest.post("/partner/find", {"opts": {"tg_id": call.from_user.id}})
+		partner = partners[0]['partners']
+
+		if partner:
+			partner = partner[-1]
+		else:
+			await call.answer('Доступ запрещен')
+			return
+
+		today_deps = sum([dep['amount'] for dep in stats['today']['dep'] if dep['partner_hash'] == partner['partner_hash']])
+		yesterday_deps = sum([dep['amount'] for dep in stats['yesterday']['dep'] if dep['partner_hash'] == partner['partner_hash']])
+		last_week_deps = sum([dep['amount'] for dep in stats['last_week']['dep'] if dep['partner_hash'] == partner['partner_hash']])
+		last_month_deps = sum([dep['amount'] for dep in stats['last_month']['dep'] if dep['partner_hash'] == partner['partner_hash']])
+
+		today_firstdeps = sum([dep['amount'] for dep in stats['today']['firstdep'] if dep['partner_hash'] == partner['partner_hash']])
+		yesterday_firstdeps = sum([dep['amount'] for dep in stats['yesterday']['firstdep'] if dep['partner_hash'] == partner['partner_hash']])
+		last_week_firstdeps = sum([dep['amount'] for dep in stats['last_week']['firstdep'] if dep['partner_hash'] == partner['partner_hash']])
+		last_month_firstdeps = sum([dep['amount'] for dep in stats['last_month']['firstdep'] if dep['partner_hash'] == partner['partner_hash']])
+
+		today_income = sum([dep['x'] for dep in stats['today']['income'] if dep['partner_hash'] == partner['partner_hash']])
+		yesterday_income = sum([dep['x'] for dep in stats['yesterday']['income'] if dep['partner_hash'] == partner['partner_hash']])
+		last_week_income = sum([dep['x'] for dep in stats['last_week']['income'] if dep['partner_hash'] == partner['partner_hash']])
+		last_month_income = sum([dep['x'] for dep in stats['last_month']['income'] if dep['partner_hash'] == partner['partner_hash']])
+
+		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		alltime_firstdeps = today_firstdeps + yesterday_firstdeps + last_week_firstdeps + last_month_firstdeps
+		alltime_income = today_income + yesterday_income + last_week_income + last_month_income
+
+		messages = [
+			f"🏆️ Ваш текущий статус: {partner['status']}",
+			f"🎯 Вы получаете: {get_percent_by_status(partner['status'])}%\n",
+			"📊 Ваш доход за последний месяц: 15 000 RUB",
+			"💼 Общий доход: 100 000 RUB",
+			"💰️ Первые депозиты за последний месяц: 100\n",
+			"Условия для перехода:",
+			"❌ Доход за последний месяц: не менее 50 000 рублей",
+			"✅ Общий доход за все время: не менее 100 000 рублей",
+			"✅ Первые депозиты за последний месяц: не менее 100\n",
+			"Продолжайте в том же духе! Чем дольше и лучше вы работаете, тем больше вы зарабатывайте! Переход на новый уровень происходит автоматически каждые 24 часа, если все условия выполнены.",
+			"\n<code>Обратите внимание: условия перехода могут меняться.</code>\n",
+			"Если у вас есть вопросы, напишите в поддержку",
+		]
 
 	await call.message.edit_text(
 		"\n".join(messages),
@@ -1089,7 +1165,24 @@ async def admin_approve_transaction(call: CallbackQuery, scheduler = scheduler):
 	data = transactions_dict.get(transaction_id, {})
 	sum_to_withdraw = f'{data["withdraw_sum"]:,}'.replace(',', ' ')
 
+	try:
+		scheduler.remove_job(f'sendtransac_{transaction_id}')
+	except Exception:
+		try:
+			scheduler.remove_job(f'fsendtransac_{transaction_id}')
+		except Exception:
+			pass
+
 	scheduler.add_job(send_message_about_transaction_to_user, trigger=IntervalTrigger(seconds=180), args=(sum_to_withdraw, transaction["partner_hash"], transaction_id, scheduler), id=f'sendtransac_{transaction_id}', replace_existing=True)
+
+	try:
+		scheduler.remove_job(f'sendtransac_{transaction_id}')
+	except Exception:
+		pass
+	try:
+		scheduler.remove_job(f'fsendtransac_{transaction_id}')
+	except Exception:
+		pass
 
 	for admin in config.secrets.ADMINS_IDS:
 		await bot.send_message(chat_id=admin, text=f'''✅Вывод средств успешно обработан
@@ -1148,6 +1241,14 @@ async def empty_cancel_reason(call: CallbackQuery, state: FSMContext, scheduler 
 	scheduler.add_job(send_message_about_ftransaction_to_user, trigger=IntervalTrigger(seconds=180), args=(None, sum_to_withdraw, transaction["partner_hash"], transaction['id'], scheduler), 
 	id=f'fsendtransac_{transaction["id"]}', replace_existing=True)
 
+	try:
+		scheduler.remove_job(f'sendtransac_{transaction["id"]}')
+	except Exception:
+		pass
+	try:
+		scheduler.remove_job(f'fsendtransac_{transaction["id"]}')
+	except Exception:
+		pass
 
 	for admin in config.secrets.ADMINS_IDS:
 		await bot.send_message(chat_id=admin, text=f'''
@@ -1184,6 +1285,14 @@ async def empty_cancel_reaso_msgn(message: Message, state: FSMContext, scheduler
 
 	scheduler.add_job(send_message_about_ftransaction_to_user, trigger=IntervalTrigger(seconds=180), args=(message.text, sum_to_withdraw, transaction["partner_hash"], transaction['id'], scheduler), 
 	id=f'fsendtransac_{transaction["id"]}', replace_existing=True)
+
+	try:
+		scheduler.remove_job(f'sendtransac_{transaction["id"]}')
+	except Exception:
+		try:
+			scheduler.remove_job(f'fsendtransac_{transaction["id"]}')
+		except Exception:
+			pass
 
 	for admin in config.secrets.ADMINS_IDS:
 		await bot.send_message(chat_id=admin, text=f'''
