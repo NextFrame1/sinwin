@@ -1,5 +1,6 @@
-from typing import Any, Dict, Tuple, Union
 import traceback
+from typing import Any, Dict, Tuple, Union
+
 import aiohttp
 from loguru import logger
 
@@ -12,7 +13,9 @@ class APIRequest:
 	"""
 
 	@staticmethod
-	async def fetch(client: aiohttp.ClientSession, url: str, data: Dict[Any, Any] = {}) -> Tuple[Union[Any, bool], int]:
+	async def fetch(
+		client: aiohttp.ClientSession, url: str, data: Dict[Any, Any] = {}
+	) -> Tuple[Union[Any, bool], int]:
 		"""
 		Fetch URL with data and ClientSession
 
@@ -29,12 +32,12 @@ class APIRequest:
 		url = f'{config.secrets.URL}{url if url.startswith("/") else f"/{url}"}'
 		try:
 			if data:
-				logger.debug(f"Post APIRequest: {url}")
+				logger.debug(f'Post APIRequest: {url}')
 				response = await client.post(
-					url=url, json=data, headers={"Content-Type": "application/json"}
+					url=url, json=data, headers={'Content-Type': 'application/json'}
 				)
 			else:
-				logger.debug(f"Get APIRequest: {url}")
+				logger.debug(f'Get APIRequest: {url}')
 				response = await client.get(url)
 
 			result = await response.json()
@@ -44,22 +47,22 @@ class APIRequest:
 			else:
 				return result, 500
 		except aiohttp.ClientError:
-			logger.error(f"[aiohttp] {url} error: {traceback.format_exc()}")
+			logger.error(f'[aiohttp] {url} error: {traceback.format_exc()}')
 			return False, 500
 		except Exception:
-			logger.error(f"[APIRequest] {url} error: {traceback.format_exc()}")
+			logger.error(f'[APIRequest] {url} error: {traceback.format_exc()}')
 			return False, 500
 
 	@staticmethod
 	async def post(url: str, data: Dict[Any, Any]) -> Tuple[Union[Any, bool], int]:
 		"""
 		Post request to URL with data
-		
+
 		:param      url:   The url
 		:type       url:   str
 		:param      data:  The data
 		:type       data:  data: Dict[Any, Any]
-		
+
 		:returns:   result and status code
 		:rtype:     Tuple[Union[Any, bool], int]
 		"""
@@ -71,10 +74,10 @@ class APIRequest:
 	async def get(url: str) -> Tuple[Union[Any, bool], int]:
 		"""
 		Get request to URL with data
-		
+
 		:param      url:  The url
 		:type       url:  str
-		
+
 		:returns:   result and status code
 		:rtype:     Tuple[Union[Any, bool], int]
 		"""

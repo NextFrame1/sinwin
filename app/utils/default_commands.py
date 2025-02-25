@@ -8,6 +8,6 @@ async def setup_default_commands(bot):
 	:param		bot:  Bot
 	:type		bot:  bot
 	"""
-	commands = [BotCommand(command="start", description="Старт")]
+	commands = [BotCommand(command='start', description='Старт')]
 
 	await bot.set_my_commands(commands, BotCommandScopeDefault())

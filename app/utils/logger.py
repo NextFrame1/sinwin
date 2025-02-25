@@ -36,7 +36,7 @@ class InterceptHandler(logging.Handler):
 		)
 
 
-def setup_logger(level: Union[str, int] = "DEBUG", ignored: List[str] = "") -> None:
+def setup_logger(level: Union[str, int] = 'DEBUG', ignored: List[str] = '') -> None:
 	"""
 	Setup logger
 
@@ -52,4 +52,4 @@ def setup_logger(level: Union[str, int] = "DEBUG", ignored: List[str] = "") -> N
 	for ignore in ignored:
 		logger.disable(ignore)
 
-	logger.info("Logging is successfully configured")
+	logger.info('Logging is successfully configured')

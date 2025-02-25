@@ -6,9 +6,7 @@ from loguru import logger
 from app.loader import config
 
 
-async def create_cache(
-	namespace: str = "main"
-) -> Cache.REDIS:
+async def create_cache(namespace: str = 'main') -> Cache.REDIS:
 	"""
 	Gets the cache.
 
@@ -31,13 +29,13 @@ async def create_cache(
 			namespace=namespace,
 		)
 	except Exception as ex:
-		logger.error(f"Error when get_cache: {ex}")
+		logger.error(f'Error when get_cache: {ex}')
 		return None, None
 
 	return cache
 
 
-async def get_cache(name: str, namespace: str = "main") -> Any:
+async def get_cache(name: str, namespace: str = 'main') -> Any:
 	"""
 	Gets the cached value by name.
 
@@ -62,9 +60,7 @@ async def get_cache(name: str, namespace: str = "main") -> Any:
 	return value
 
 
-async def set_cache(
-	data: Any, name: str, namespace: str = "main"
-):
+async def set_cache(data: Any, name: str, namespace: str = 'main'):
 	"""
 	Sets the cache.
 

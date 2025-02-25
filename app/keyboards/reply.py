@@ -10,7 +10,7 @@ def create_main_rk():
 	"""
 	builder = ReplyKeyboardBuilder()
 
-	buttons = ["Создать пост", "Контент-план", "Все посты", "Каналы"]
+	buttons = ['Создать пост', 'Контент-план', 'Все посты', 'Каналы']
 
 	for button in buttons:
 		builder.button(text=button)
@@ -22,6 +22,6 @@ def create_main_rk():
 def create_get_contact_markup():
 	builder = ReplyKeyboardBuilder()
 
-	builder.button(text="Поделиться номером", request_contact=True)
+	builder.button(text='Поделиться номером', request_contact=True)
 
 	return builder.as_markup(resize_keyboard=True)

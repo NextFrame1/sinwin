@@ -6,9 +6,7 @@ def view_form(userid):
 	builder = InlineKeyboardBuilder()
 
 	builder.row(
-		InlineKeyboardButton(
-			text="Изменить", callback_data=f"resend_form_{userid}"
-		)
+		InlineKeyboardButton(text='Изменить', callback_data=f'resend_form_{userid}')
 	)
 
 	builder.adjust(1)
@@ -21,7 +19,7 @@ def choice_new_answers():
 
 	builder.row(
 		InlineKeyboardButton(
-			text="💼 Подать новую заявку", callback_data="submit_reg_request"
+			text='💼 Подать новую заявку', callback_data='submit_reg_request'
 		)
 	)
 
@@ -34,15 +32,11 @@ def get_approve_menu(tid: int):
 	builder = InlineKeyboardBuilder()
 
 	builder.row(
-		InlineKeyboardButton(
-			text="✅ Подтвердить", callback_data=f"approve_{tid}"
-		)
+		InlineKeyboardButton(text='✅ Подтвердить', callback_data=f'approve_{tid}')
 	)
 
 	builder.row(
-		InlineKeyboardButton(
-			text="❌ Отклонить", callback_data=f"disapprove_{tid}"
-		)
+		InlineKeyboardButton(text='❌ Отклонить', callback_data=f'disapprove_{tid}')
 	)
 
 	builder.adjust(1)
@@ -55,7 +49,7 @@ def create_start_markup():
 
 	builder.row(
 		InlineKeyboardButton(
-			text="✍️ Оставить заявку", callback_data="submit_reg_request"
+			text='✍️ Оставить заявку', callback_data='submit_reg_request'
 		)
 	)  # accept_submitted_reg_request_callback
 
@@ -67,12 +61,12 @@ def create_start_markup():
 def create_choice_user_experience_markup():
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text="Да", callback_data="1set_experience_time"))
+	builder.row(InlineKeyboardButton(text='Да', callback_data='1set_experience_time'))
 	builder.row(
-		InlineKeyboardButton(text="Нет", callback_data="1set_experience_time_no")
+		InlineKeyboardButton(text='Нет', callback_data='1set_experience_time_no')
 	)
 	builder.row(
-		InlineKeyboardButton(text="Немного", callback_data="1set_experience_time_none")
+		InlineKeyboardButton(text='Немного', callback_data='1set_experience_time_none')
 	)
 
 	builder.adjust(2)
@@ -84,29 +78,29 @@ def create_choice_user_experience_time_markup():
 	inline_kb_list = [
 		[
 			InlineKeyboardButton(
-				text="1 месяц", callback_data="set_experience_times_1month"
+				text='1 месяц', callback_data='set_experience_times_1month'
 			),
 			InlineKeyboardButton(
-				text="2 месяца", callback_data="set_experience_times_2month"
-			),
-		],
-		[
-			InlineKeyboardButton(
-				text="3 месяца", callback_data="set_experience_times_3month"
-			),
-			InlineKeyboardButton(
-				text="Полгода", callback_data="set_experience_times_halfyear"
+				text='2 месяца', callback_data='set_experience_times_2month'
 			),
 		],
 		[
 			InlineKeyboardButton(
-				text="Год", callback_data="set_experience_times_1year"
+				text='3 месяца', callback_data='set_experience_times_3month'
 			),
 			InlineKeyboardButton(
-				text="2 года", callback_data="set_experience_times_2year"
+				text='Полгода', callback_data='set_experience_times_halfyear'
+			),
+		],
+		[
+			InlineKeyboardButton(
+				text='Год', callback_data='set_experience_times_1year'
 			),
 			InlineKeyboardButton(
-				text="Больше", callback_data="set_experience_times_more"
+				text='2 года', callback_data='set_experience_times_2year'
+			),
+			InlineKeyboardButton(
+				text='Больше', callback_data='set_experience_times_more'
 			),
 		],
 	]
@@ -117,8 +111,8 @@ def create_choice_user_experience_time_markup():
 def create_referal_connection_markup():
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text="Да", callback_data="referal_status_not"))
-	builder.row(InlineKeyboardButton(text="Нет", callback_data="referal_status_have"))
+	builder.row(InlineKeyboardButton(text='Да', callback_data='referal_status_not'))
+	builder.row(InlineKeyboardButton(text='Нет', callback_data='referal_status_have'))
 
 	builder.adjust(2)
 
@@ -128,10 +122,10 @@ def create_referal_connection_markup():
 def create_final_req():
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text="✈️ Отправить", callback_data="send_request"))
+	builder.row(InlineKeyboardButton(text='✈️ Отправить', callback_data='send_request'))
 	builder.row(
 		InlineKeyboardButton(
-			text="↪️ Поменять ответы", callback_data="submit_reg_request"
+			text='↪️ Поменять ответы', callback_data='submit_reg_request'
 		)
 	)
 
@@ -143,7 +137,11 @@ def create_final_req():
 def get_show_menu_markup():
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text="💻️ Показать меню", callback_data="showmenu_after_reg"))
+	builder.row(
+		InlineKeyboardButton(
+			text='💻️ Показать меню', callback_data='showmenu_after_reg'
+		)
+	)
 
 	builder.adjust(1)
 
@@ -153,9 +151,9 @@ def get_show_menu_markup():
 def create_ubt_markup():
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text="Да", callback_data="use_ubt_yes"))
-	builder.row(InlineKeyboardButton(text="Нет", callback_data="use_ubt_no"))
-	builder.row(InlineKeyboardButton(text="Немного", callback_data="use_ubt_none"))
+	builder.row(InlineKeyboardButton(text='Да', callback_data='use_ubt_yes'))
+	builder.row(InlineKeyboardButton(text='Нет', callback_data='use_ubt_no'))
+	builder.row(InlineKeyboardButton(text='Немного', callback_data='use_ubt_none'))
 
 	builder.adjust(2)
 
