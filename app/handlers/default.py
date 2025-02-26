@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-
+from typing import Dict, Any
 from aiogram import F, Router
 from aiogram.enums import ParseMode
 from aiogram.fsm.context import FSMContext
@@ -30,6 +30,17 @@ transactions_dict = {}
 transactions_schedulded = {}
 withdraws_history = {}
 
+ACHIEVEMENTS = {
+	"users": [100, 250, 500, 750, 1000, 2500, 5000, 10000, 15000, 20000, 25000, 30000, 40000, 50000, 75000, 100000, 150000, 200000, 250000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 5000000],
+	"deposits": [10000, 25000, 50000, 100000, 250000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000, 12500000, 15000000, 20000000, 25000000, 50000000, 100000000, 150000000, 200000000, 250000000, 500000000, 750000000, 1000000000, 1500000000, 2000000000, 2500000000, 5000000000],
+	"income": [5000, 10000, 25000, 50000, 100000, 250000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000, 12500000, 15000000, 20000000, 25000000, 50000000, 100000000, 150000000, 200000000, 250000000, 500000000, 750000000, 1000000000, 1500000000, 2000000000, 2500000000, 5000000000],
+	"first_deposits": [25, 50, 75, 100, 150, 200, 250, 500, 750, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000, 12500000, 15000000, 20000000, 25000000, 50000000, 100000000, 150000000, 200000000, 250000000, 500000000, 750000000, 1000000000, 1500000000, 2000000000, 2500000000, 5000000000],
+	"referrals": [1, 2, 3, 5, 7, 10, 15, 20, 25, 35, 50, 75, 100, 150, 200, 250, 500, 750, 1000, 1500, 2000, 2500, 5000, 10000, 25000],
+	"api": [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000, 12500000, 15000000, 20000000, 25000000, 50000000, 100000000, 150000000, 200000000, 250000000, 500000000, 750000000, 1000000000, 1500000000, 2000000000, 2500000000, 5000000000],
+	"signals": [100, 250, 500, 750, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000, 12500000, 15000000, 20000000, 25000000, 50000000, 100000000, 150000000, 200000000, 250000000, 500000000, 750000000, 1000000000, 1500000000, 2000000000, 2500000000, 5000000000]
+}
+
+user_achievements: Dict[int, Any] = {}
 
 class CardWithdrawGroup(StatesGroup):
 	withdraw_sum = State()
@@ -131,10 +142,10 @@ async def statistics_callback(call: CallbackQuery):
 	if call.from_user.id in config.secrets.ADMINS_IDS:
 		data = await collect_stats({})
 
-		today_deps = len([dep["amount"] for dep in stats["today"]["dep"]])
-		yesterday_deps = len([dep["amount"] for dep in stats["yesterday"]["dep"]])
-		last_week_deps = len([dep["amount"] for dep in stats["last_week"]["dep"]])
-		last_month_deps = len([dep["amount"] for dep in stats["last_month"]["dep"]])
+		today_deps = sum([dep["amount"] for dep in stats["today"]["dep"]])
+		yesterday_deps = sum([dep["amount"] for dep in stats["yesterday"]["dep"]])
+		last_week_deps = sum([dep["amount"] for dep in stats["last_week"]["dep"]])
+		last_month_deps = sum([dep["amount"] for dep in stats["last_month"]["dep"]])
 
 		today_firstdeps = len([dep["amount"] for dep in stats["today"]["firstdep"]])
 		yesterday_firstdeps = len(
@@ -143,25 +154,25 @@ async def statistics_callback(call: CallbackQuery):
 		last_week_firstdeps = len(
 			[dep["amount"] for dep in stats["last_week"]["firstdep"]]
 		)
-		last_month_firstdeps = 10000000 + len(
+		last_month_firstdeps = len(
 			[dep["amount"] for dep in stats["last_month"]["firstdep"]]
 		)
 
 		today_income = sum([dep["income"] for dep in stats["today"]["income"]])
 		yesterday_income = sum([dep["income"] for dep in stats["yesterday"]["income"]])
 		last_week_income = sum([dep["income"] for dep in stats["last_week"]["income"]])
-		last_month_income= 10000000 + sum(
+		last_month_income =sum(
 			[dep["income"] for dep in stats["last_month"]["income"]]
 		)
 
-		alltime_deps = 10000000 + today_deps + yesterday_deps + last_week_deps + last_month_deps
-		alltime_firstdeps= 10000000 + (
+		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		alltime_firstdeps= (
 			today_firstdeps
 			+ yesterday_firstdeps
 			+ last_week_firstdeps
 			+ last_month_firstdeps
 		)
-		alltime_income = 10000000 + (
+		alltime_income = (
 			today_income + yesterday_income + last_week_income + last_month_income
 		)
 
@@ -227,28 +238,28 @@ async def statistics_callback(call: CallbackQuery):
 			]
 		)
 
-		today_deps = len(
+		today_deps = sum(
 			[
 				dep["amount"]
 				for dep in stats["today"]["dep"]
 				if dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		yesterday_deps = len(
+		yesterday_deps = sum(
 			[
 				dep["amount"]
 				for dep in stats["yesterday"]["dep"]
 				if dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		last_week_deps = len(
+		last_week_deps = sum(
 			[
 				dep["amount"]
 				for dep in stats["last_week"]["dep"]
 				if dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		last_month_deps = len(
+		last_month_deps = sum(
 			[
 				dep["amount"]
 				for dep in stats["last_month"]["dep"]
@@ -277,7 +288,7 @@ async def statistics_callback(call: CallbackQuery):
 				if dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		last_month_firstdeps = 10000000 + len(
+		last_month_firstdeps = len(
 			[
 				dep["amount"]
 				for dep in stats["last_month"]["firstdep"]
@@ -306,7 +317,7 @@ async def statistics_callback(call: CallbackQuery):
 				if dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		last_month_income= 10000000 + sum(
+		last_month_income =sum(
 			[
 				dep["x"]
 				for dep in stats["last_month"]["income"]
@@ -314,14 +325,14 @@ async def statistics_callback(call: CallbackQuery):
 			]
 		)
 
-		alltime_deps = 10000000 + today_deps + yesterday_deps + last_week_deps + last_month_deps
-		alltime_firstdeps= 10000000 + (
+		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		alltime_firstdeps= (
 			today_firstdeps
 			+ yesterday_firstdeps
 			+ last_week_firstdeps
 			+ last_month_firstdeps
 		)
-		alltime_income = 10000000 + (
+		alltime_income = (
 			today_income + yesterday_income + last_week_income + last_month_income
 		)
 
@@ -378,24 +389,24 @@ async def statistics_mines_callback(call: CallbackQuery):
 
 		api_count = len([apinum for partnerhash, apinum in result["api_count"].items()])
 
-		today_deps = len(
+		today_deps = sum(
 			[dep["amount"] for dep in stats["today"]["dep"] if dep["game"] == "Mines"]
 		)
-		yesterday_deps = len(
+		yesterday_deps = sum(
 			[
 				dep["amount"]
 				for dep in stats["yesterday"]["dep"]
 				if dep["game"] == "Mines"
 			]
 		)
-		last_week_deps = len(
+		last_week_deps = sum(
 			[
 				dep["amount"]
 				for dep in stats["last_week"]["dep"]
 				if dep["game"] == "Mines"
 			]
 		)
-		last_month_deps = len(
+		last_month_deps = sum(
 			[
 				dep["amount"]
 				for dep in stats["last_month"]["dep"]
@@ -424,7 +435,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 				if dep["game"] == "Mines"
 			]
 		)
-		last_month_firstdeps = 10000000 + len(
+		last_month_firstdeps = len(
 			[
 				dep["amount"]
 				for dep in stats["last_month"]["firstdep"]
@@ -453,7 +464,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 				if dep["game"] == "Mines"
 			]
 		)
-		last_month_income= 10000000 + sum(
+		last_month_income =sum(
 			[
 				dep["income"]
 				for dep in stats["last_month"]["income"]
@@ -461,14 +472,14 @@ async def statistics_mines_callback(call: CallbackQuery):
 			]
 		)
 
-		alltime_deps = 10000000 + today_deps + yesterday_deps + last_week_deps + last_month_deps
-		alltime_firstdeps= 10000000 + (
+		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		alltime_firstdeps= (
 			today_firstdeps
 			+ yesterday_firstdeps
 			+ last_week_firstdeps
 			+ last_month_firstdeps
 		)
-		alltime_income = 10000000 + (
+		alltime_income = (
 			today_income + yesterday_income + last_week_income + last_month_income
 		)
 
@@ -535,7 +546,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 			]
 		)
 
-		today_deps = len(
+		today_deps = sum(
 			[
 				dep["amount"]
 				for dep in stats["today"]["dep"]
@@ -543,7 +554,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 				and dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		yesterday_deps = len(
+		yesterday_deps = sum(
 			[
 				dep["amount"]
 				for dep in stats["yesterday"]["dep"]
@@ -551,7 +562,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 				and dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		last_week_deps = len(
+		last_week_deps = sum(
 			[
 				dep["amount"]
 				for dep in stats["last_week"]["dep"]
@@ -559,7 +570,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 				and dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		last_month_deps = len(
+		last_month_deps = sum(
 			[
 				dep["amount"]
 				for dep in stats["last_month"]["dep"]
@@ -592,7 +603,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 				and dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		last_month_firstdeps = 10000000 + len(
+		last_month_firstdeps = len(
 			[
 				dep["amount"]
 				for dep in stats["last_month"]["firstdep"]
@@ -625,7 +636,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 				and dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		last_month_income= 10000000 + sum(
+		last_month_income =sum(
 			[
 				dep["x"]
 				for dep in stats["last_month"]["income"]
@@ -634,14 +645,14 @@ async def statistics_mines_callback(call: CallbackQuery):
 			]
 		)
 
-		alltime_deps = 10000000 + today_deps + yesterday_deps + last_week_deps + last_month_deps
-		alltime_firstdeps= 10000000 + (
+		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		alltime_firstdeps= (
 			today_firstdeps
 			+ yesterday_firstdeps
 			+ last_week_firstdeps
 			+ last_month_firstdeps
 		)
-		alltime_income = 10000000 + (
+		alltime_income = (
 			today_income + yesterday_income + last_week_income + last_month_income
 		)
 
@@ -774,6 +785,40 @@ async def referal_answer_callback(call: CallbackQuery):
 ''', reply_markup=inline.create_referals_markup())
 
 
+def check_achievements(users_count, income, deposits_sum, first_deposits_count):
+	achievements = ["🏆️ Ваши Цели:\n",]
+
+	thresholds = {
+		'users_count': [],
+		'deposits_sum': [],
+		'income': [],
+		'first_deposits_count': [],
+	}
+
+	for threshold in ACHIEVEMENTS["users"]:
+		if users_count >= threshold:
+			thresholds['users_count'].append(threshold)
+
+	for threshold in ACHIEVEMENTS["deposits"]:
+		if deposits_sum >= threshold:
+			thresholds['deposits_sum'].append(threshold)
+	
+	for threshold in ACHIEVEMENTS["income"]:
+		if income >= threshold:
+			thresholds['income'].append(threshold)
+
+	for threshold in ACHIEVEMENTS["first_deposits"]:
+		if first_deposits_count >= threshold:
+			thresholds['first_deposits_count'].append(threshold)
+	
+	achievements.append(f'✅ Пользователей по Вашим ссылкам: {",".join(thresholds["users_count"])}')
+	achievements.append(f'✅ Депозиты: {",".join(thresholds["deposits_sum"])}')
+	achievements.append(f'✅ Доход: {",".join(thresholds["income"])}')
+	achievements.append(f'✅ Первые депозиты: {",".join(thresholds["first_deposits_count"])}')
+
+	return achievements
+
+
 @default_router.callback_query(F.data.startswith("reload_achievs"), only_confirmed)
 async def reload_achievs_callback(call: CallbackQuery):
 	await call.answer("Вы не выполнили не одного достижения", show_alert=True)
@@ -781,10 +826,11 @@ async def reload_achievs_callback(call: CallbackQuery):
 
 @default_router.callback_query(F.data.startswith("my_achievs"), only_confirmed)
 async def my_achievs_callback(call: CallbackQuery):
+
 	messages = [
 		"🏆️ Ваши достижения\n",
-		"Количество: 4\n",
-		"✅ Пользователей по Вашим ссыькам: 100, 250\n",
+		f"Количество: 0\n",
+		"✅ Пользователей по Вашим ссылкам: 100, 250\n",
 		"✅ Депозиты: 10 000, 25 000, 50 000 рублей\n",
 		"✅ Доход: 5 000, 10 000, 25 000 рублей\n",
 		"✅ Первые депозиты: 25, 50, 75, 100, 150\n",
@@ -800,25 +846,96 @@ async def my_achievs_callback(call: CallbackQuery):
 	)
 
 
+def check_achievements_var2(users_count, income, deposits_sum, first_deposits_count, referrals_count, signals_count):
+	achievements = ["🏆️ Ваши Цели:\n",]
+
+	for threshold in ACHIEVEMENTS["users"]:
+		if users_count < threshold:
+			achievements.append(f'❌ Пользователей по вашим ссылкам: {users_count}')
+			break
+
+	for threshold in ACHIEVEMENTS["deposits"]:
+		if deposits_sum < threshold:
+			achievements.append(f"❌ Депозиты: {deposits_sum} рублей")
+			break
+	
+	for threshold in ACHIEVEMENTS["income"]:
+		if income < threshold:
+			achievements.append(f"❌ Доход: {income} рублей")
+			break
+
+	for threshold in ACHIEVEMENTS["first_deposits"]:
+		if first_deposits_count < threshold:
+			achievements.append(f"❌ Первые депозиты: {first_deposits_count}")
+			break
+	
+	for threshold in ACHIEVEMENTS["referrals"]:
+		if referrals_count<= threshold:
+			achievements.append(f"❌ Количество рефералов: {cpartners}")
+			break
+
+	for threshold in ACHIEVEMENTS["signals"]:
+		if signals_count < threshold:
+			achievements.append(f"❌ Сгенерировано сигналов: {signals_count}")
+			break
+
+	return achievements
+
+
 @default_router.callback_query(F.data.startswith("achievements"), only_confirmed)
 async def achievements_callback(call: CallbackQuery):
-	global alerts
-
 	if call.data == "achievements_false":
-		alerts = not alerts
+		data = user_achievements.get(call.from_user.id, {})
+		data["alerts"] = False
+		user_achievements[call.from_user.id] = data
+	elif call.data == 'achievements_true':
+		data = user_achievements.get(call.from_user.id, {})
+		data["alerts"] = True
+		user_achievements[call.from_user.id] = data
 
-	messages = [
-		"🏆️ Ваши Цели:\n",
-		"❌ Пользователей по вашим ссылкам: 100",
-		"❌ Депозиты: 10 000 рублей",
-		"❌ Доход: 5 000 рублей",
-		"❌ Первые депозиты: 25",
-		"❌ Количество рефералов: 1",
-		"❌ Сгенерировано сигналов: 250\n",
-	]
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"]
+	
+	if partner:
+		partner = partner[-1]
+	else:
+		await call.answer("Вы еще не зарегистрированы в системе")
+
+	if not partner["approved"]:
+		print(partner)
+		users[call.from_user.id] = users.get(call.from_user.id, {})
+		users[call.from_user.id]["final"] = False
+		await call.answer("Вы заблокированы")
+		return
+
+	if user_achievements.get(call.from_user.id, {}):
+		achievements = user_achievements.get(call.from_user.id, {})
+
+		messages = achievements
+	else:
+		result, code = await APIRequest.get(f"/base/achstats?partnerhash={partner["partner_hash"]}")
+
+		cpartners = await APIRequest.post(
+			"/partner/find", {"opts": {"referrer_hash": partner["referrer_hash"]}}
+		)
+		cpartners = cpartners[0]["partners"]
+
+		opts = {"game": "Mines", "referal_parent": partner["partner_hash"]}
+		data = await collect_stats(opts)
+
+		achievements = check_achievements_var2(data['users_count'], result['income'], result['deposits_sum'], result['first_deposits_count'],
+										len(cpartners), result['signals_count'])
+
+		count = len(achievements)
+
+		messages = achievements
+
+		user_achievements[call.from_user.id] = achievements
 
 	messages.append(
-		"✅ Уведомления включены\n" if alerts else "❌ Уведомления выключены\n"
+		"✅ Уведомления включены\n" if user_achievements.get(call.from_user.id, {}).get('alerts', True) else "❌ Уведомления выключены\n"
 	)
 
 	messages.append("Продолжайте в том же духе и достигайте новых высот! 🌟")
@@ -826,7 +943,7 @@ async def achievements_callback(call: CallbackQuery):
 	await call.message.edit_text(
 		"\n".join(messages),
 		parse_mode=ParseMode.HTML,
-		reply_markup=inline.create_achievements_markup(alerts),
+		reply_markup=inline.create_achievements_markup(user_achievements.get(call.from_user.id, {}).get('alerts', True)),
 	)
 
 
@@ -885,18 +1002,18 @@ async def work_callback(call: CallbackQuery):
 
 @default_router.callback_query(F.data.startswith("showmenu"), only_confirmed)
 async def showmenu_callback(call: CallbackQuery):
-	if call.data == "showmenu_after_reg":
+	try:
+		await call.message.edit_text(
+			"🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!",
+			parse_mode=ParseMode.HTML,
+			reply_markup=inline.create_main_menu_markup(call.from_user.id),
+		)
+	except Exception:
 		await call.message.delete()
 		await call.message.answer(
 			"🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!",
 			parse_mode=ParseMode.HTML,
-			reply_markup=inline.create_main_menu_markup(),
-		)
-	else:
-		await call.message.edit_text(
-			"🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!",
-			parse_mode=ParseMode.HTML,
-			reply_markup=inline.create_main_menu_markup(),
+			reply_markup=inline.create_main_menu_markup(call.from_user.id),
 		)
 
 
@@ -1265,7 +1382,7 @@ async def status_callback(call: CallbackQuery):
 				if dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		last_month_firstdeps = 10000000 + len(
+		last_month_firstdeps = len(
 			[
 				dep["amount"]
 				for dep in stats["last_month"]["firstdep"]
@@ -1294,7 +1411,7 @@ async def status_callback(call: CallbackQuery):
 				if dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		last_month_income= 10000000 + sum(
+		last_month_income =sum(
 			[
 				dep["x"]
 				for dep in stats["last_month"]["income"]
@@ -1310,14 +1427,14 @@ async def status_callback(call: CallbackQuery):
 			]
 		)
 
-		alltime_deps = 10000000 + today_deps + yesterday_deps + last_week_deps + last_month_deps
-		alltime_firstdeps= 10000000 + (
+		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		alltime_firstdeps= (
 			today_firstdeps
 			+ yesterday_firstdeps
 			+ last_week_firstdeps
 			+ last_month_firstdeps
 		)
-		alltime_income = 10000000 + (
+		alltime_income = (
 			today_income
 			+ yesterday_income
 			+ last_week_income
@@ -1562,7 +1679,7 @@ async def confirm_status_change_user(call: CallbackQuery, scheduler=scheduler):
 			chat_id=admin,
 			text=f"""
 Ник: {partner["username"]}
-Хэш: {partner["hash"]}
+Хэш: {partner["partner_hash"]}
 Реферал: {partner["is_referal"]}
 
 ✅ Пользователь перешел со статуса со статуса “Профессионал 45%” на статус “Мастер 50%”		
@@ -1687,7 +1804,7 @@ async def change_status_moving_callback(call: CallbackQuery):
 			if dep["partner_hash"] == partner["partner_hash"]
 		]
 	)
-	last_month_firstdeps = 10000000 + len(
+	last_month_firstdeps = len(
 		[
 			dep["amount"]
 			for dep in stats["last_month"]["firstdep"]
@@ -1716,7 +1833,7 @@ async def change_status_moving_callback(call: CallbackQuery):
 			if dep["partner_hash"] == partner["partner_hash"]
 		]
 	)
-	last_month_income= 10000000 + sum(
+	last_month_income =sum(
 		[
 			dep["x"]
 			for dep in stats["last_month"]["income"]
@@ -1732,14 +1849,14 @@ async def change_status_moving_callback(call: CallbackQuery):
 		]
 	)
 
-	alltime_deps = 10000000 + today_deps + yesterday_deps + last_week_deps + last_month_deps
-	alltime_firstdeps= 10000000 + (
+	alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+	alltime_firstdeps= (
 		today_firstdeps
 		+ yesterday_firstdeps
 		+ last_week_firstdeps
 		+ last_month_firstdeps
 	)
-	alltime_income = 10000000 + (
+	alltime_income = (
 		today_income
 		+ yesterday_income
 		+ last_week_income
@@ -1921,8 +2038,19 @@ async def profile_callback(call: CallbackQuery):
 
 @default_router.callback_query(F.data == "withdraw", only_confirmed)
 async def withdraw_callback(call: CallbackQuery):
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"]
+
+	if partner:
+		partner = partner[-1]
+	else:
+		await call.answer('Недоступно получение партнера')
+		return
+
 	messages = [
-		"💰️ Баланс: 0 RUB\n",
+		f"💰️ Баланс: {partner['balance']} RUB\n",
 		"❗️ ВЫВОД СРЕДСТВ ДОСТУПЕН ОДИН РАЗ В НЕДЕЛЮ КАЖДУЮ СРЕДУ ПО МОСКОВСКОМУ ВРЕМЕНИ. К ВЫВОДУ ДОСТУПНА ВСЯ СУММА КОТОРАЯ НАХОДИТСЯ НА БАЛАНСЕ.❗️\n",
 		"В редких случаях при больщом доходе со вторника на среду вывести всю сумму получится через неделю. Однако в таких ситуациях вы всегда можете вывести часть средств, оставив небольшой остаток на балансе.\n",
 		"Если в течении 24 часов после создания заявки на вывод вы не получите уведомление от бота, пожалуйста, свяжитесь с поддержкой.\n",
@@ -1987,6 +2115,8 @@ async def withdraw_crypto_callback(call: CallbackQuery):
 
 @default_router.callback_query(F.data == "withdraw_card", only_confirmed)
 async def withdraw_card_callback(call: CallbackQuery, state: FSMContext):
+	await state.clear()
+
 	users[call.message.chat.id] = {
 		"final": True,
 		"withdraw_card": True,
@@ -2081,14 +2211,14 @@ async def withdraw_withdraw_card_message(message: Message, state: FSMContext):
 	status = is_valid_card(text)
 
 	if status is None:
-		await state.clear()
+		# await state.clear()
 		user["withdraw_card"] = False
 		await message.answer(
 			"Ошибка: некорректный номер карты\n\nПожалуйста, введите корректный номер банковской карты, состоящий из 16 цифр, без пробелов.",
 			reply_markup=inline.create_back_markup("withdraw_card"),
 		)
 	elif not status:
-		await state.clear()
+		# await state.clear()
 		user["withdraw_card"] = False
 		await message.answer(
 			"Ошибка: некорректный номер карты\n\nВведенный номер карты не прошел проверку. Пожалуйста, проверьте номер и введите корректный номер банковской карты, состоящий из 16 цифр, без пробелов.",
@@ -2138,13 +2268,18 @@ async def user_approve_card_withdraw(call: CallbackQuery, state: FSMContext):
 
 	transaction_id = result.get("transaction_id", 0)
 
+	transactions = await APIRequest.post(
+		"/transaction/find", {"opts": {"id": transaction_id}}
+	)
+	transac = transactions[0]["transactions"][-1]
+
 	await call.message.edit_text(
-		f"Ваш запрос на вывод средств поставлен в очередь.\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transaction_id}\n\nВ течение 24 часов бот уведомит вас о статусе вывода. Если за это время вы не получите уведомление, пожалуйста, обратитесь в поддержку.",
+		f"Ваш запрос на вывод средств поставлен в очередь.\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transac["preview_id"]}\n\nВ течение 24 часов бот уведомит вас о статусе вывода. Если за это время вы не получите уведомление, пожалуйста, обратитесь в поддержку.",
 		reply_markup=inline.create_back_markup("profile"),
 	)
 
 	tdata = withdraws_history.get(partner_hash, {})
-	tdata[transaction_id] = {
+	tdata[transac["preview_id"]] = {
 		"status": "⚪️ Вывод на обработке",
 		"type": "💳 Карта",
 		"sum": data["withdraw_sum"],
@@ -2164,8 +2299,8 @@ async def user_approve_card_withdraw(call: CallbackQuery, state: FSMContext):
 Ник: {call.from_user.username}
 Реферал: {partner["is_referal"]}
 Хэш: {partner_hash}
-Id Вывода: {transaction_id}
-		
+Id Вывода: {transac["preview_id"]}
+
 Вывод: 💳 Карта
 Сумма: <code>{data["withdraw_sum"]}</code>₽
 Карта: <code>{data["withdraw_card"]}</code>""",
@@ -2194,7 +2329,7 @@ async def send_message_about_transaction_to_user(
 	transactions_schedulded[transaction_id] = False
 
 	tdata = withdraws_history.get(partner_hash, {})
-	tdata[transaction_id] = {
+	tdata[transac['preview_id']] = {
 		"status": "🟢 Вывод произведен",
 		"type": "💳 Карта",
 		"sum": transac["amount"],
@@ -2206,7 +2341,7 @@ async def send_message_about_transaction_to_user(
 
 	await bot.send_message(
 		chat_id=partner["tg_id"],
-		text=f"✅Ваш вывод средств успешно обработан и находиться на выплате. Средства должны прийти в течение 24 часов.\n\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transaction_id}\n\nСпасибо за использование нашего сервиса! Если средства не поступят в течение 24 часов, пожалуйста, свяжитесь с поддержкой",
+		text=f"✅Ваш вывод средств успешно обработан и находиться на выплате. Средства должны прийти в течение 24 часов.\n\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transac['preview_id']}\n\nСпасибо за использование нашего сервиса! Если средства не поступят в течение 24 часов, пожалуйста, свяжитесь с поддержкой",
 		reply_markup=inline.create_back_markup("profile"),
 	)
 
@@ -2230,7 +2365,7 @@ async def send_message_about_ftransaction_to_user(
 	transactions_schedulded[transaction_id] = False
 
 	tdata = withdraws_history.get(partner_hash, {})
-	tdata[transaction_id] = {
+	tdata[{transac['preview_id']}] = {
 		"status": "🟡 Вывод отклонен",
 		"type": "💳 Карта",
 		"sum": transac["amount"],
@@ -2246,7 +2381,7 @@ async def send_message_about_ftransaction_to_user(
 ❌ Ваш запрос на вывод средств был отклонен.
 
 🛡 Ваш хэш: {partner_hash}
-🆔 ID Вывода: {transaction_id}
+🆔 ID Вывода: {transac['preview_id']}
 {reason if reason is not None else ""}
 Пожалуйста, свяжитесь с поддержкой для получения дополнительной информации.	
 """,
@@ -2268,7 +2403,7 @@ async def admin_approve_transaction(call: CallbackQuery, scheduler=scheduler):
 
 	if transactions_schedulded.get(transaction["id"], False):
 		await call.answer(
-			f"Транзакция {transaction['id']} уже обработана другим администратором"
+			f"Транзакция {transaction['preview_id']} уже обработана другим администратором"
 		)
 		return
 
@@ -2303,7 +2438,7 @@ async def admin_approve_transaction(call: CallbackQuery, scheduler=scheduler):
 
 🙎‍♂️ Ник: {transaction["username"]}
 🛡 Хэш: {transaction["partner_hash"]}
-🆔 ID Вывода: {transaction_id}
+🆔 ID Вывода: {transaction["preview_id"]}
 
 Вывод: 💳 Карта
 Сумма: {sum_to_withdraw}
@@ -2327,7 +2462,7 @@ async def badmin_dispprove_transaction(call: CallbackQuery, state: FSMContext):
 
 	if transactions_schedulded.get(transaction["id"], False):
 		await call.answer(
-			f"Транзакция {transaction['id']} уже обработана другим администратором"
+			f"Транзакция {transaction['preview_id']} уже обработана другим администратором"
 		)
 		return
 
@@ -2367,7 +2502,7 @@ async def empty_cancel_reason(
 
 	if transactions_schedulded.get(transaction["id"], False):
 		await call.answer(
-			f"Транзакция {transaction['id']} уже обработана другим администратором"
+			f"Транзакция {transaction['preview_id']} уже обработана другим администратором"
 		)
 		return
 
@@ -2402,7 +2537,7 @@ async def empty_cancel_reason(
 
 🙎‍♂️ Ник: {transaction["username"]}
 🛡 Хэш: {transaction["partner_hash"]}
-🆔 ID Вывода: {transaction["id"]}
+🆔 ID Вывода: {transaction["preview_id"]}
 
 Вывод: 💳 Карта
 Сумма: {sum_to_withdraw}
@@ -2429,7 +2564,7 @@ async def empty_cancel_reaso_msgn(
 
 	if transactions_schedulded.get(transaction["id"], False):
 		await message.answer(
-			f"Транзакция {transaction['id']} уже обработана другим администратором"
+			f"Транзакция {transaction['preview_id']} уже обработана другим администратором"
 		)
 		return
 
@@ -2470,7 +2605,7 @@ async def empty_cancel_reaso_msgn(
 
 🙎‍♂️ Ник: {transaction["username"]}
 🛡 Хэш: {transaction["partner_hash"]}
-🆔 ID Вывода: {transaction["id"]}
+🆔 ID Вывода: {transaction["preview_id"]}
 
 Вывод: 💳 Карта
 Сумма: {sum_to_withdraw}
@@ -2492,7 +2627,7 @@ async def change_transaction_status(call: CallbackQuery):
 
 	if transactions_schedulded.get(transaction["id"], False):
 		await call.answer(
-			f"Транзакция {transaction['id']} уже обработана другим администратором"
+			f"Транзакция {transaction['preview_id']} уже обработана другим администратором"
 		)
 		return
 
@@ -2508,8 +2643,8 @@ async def change_transaction_status(call: CallbackQuery):
 Ник: {call.from_user.username}
 Реферал: {partner["is_referal"]}
 Хэш: {transaction["partner_hash"]}
-Id Вывода: {transaction_id}
-		
+Id Вывода: {transaction["preview_id"]}
+
 Вывод: 💳 Карта
 Сумма: <code>{transaction["amount"]}</code>₽
 Карта: <code>{transaction["withdraw_card"]}</code>""",
@@ -2527,15 +2662,23 @@ async def text_handler(message: Message):
 		await message.answer(
 			"🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!",
 			parse_mode=ParseMode.HTML,
-			reply_markup=inline.create_main_menu_markup(),
+			reply_markup=inline.create_main_menu_markup(message.from_user.id),
 		)
 		return
-
-	await message.answer(
-		"Вы не зарегистрированы в боте, для продолжения Вам необходимо подать заявку. Это займет менее 5 минут.",
-		parse_mode=ParseMode.HTML,
-		reply_markup=inline.create_start_markup(),
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": message.from_user.id}}
 	)
+	partner = partners[0]["partners"]
+
+	if partner:
+		partner = partner[-1]
+
+		if not partner['approved']:
+			await message.answer(
+				"Вы не зарегистрированы в боте, для продолжения Вам необходимо подать заявку. Это займет менее 5 минут.",
+				parse_mode=ParseMode.HTML,
+				reply_markup=inline.create_start_markup(),
+			)
 
 
 @default_router.callback_query(F.data == "withdraw_steam", message_only_confirmed)
@@ -2561,3 +2704,4 @@ async def withdraw_steam_message(message: Message, state: FSMContext):
 	)
 
 	await state.clear()
+>>>>>>> Tabnine >>>>>>># {"source":"chat"}

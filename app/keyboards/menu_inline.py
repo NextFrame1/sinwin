@@ -1,5 +1,6 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from app.loader import config
 
 
 def create_start_markup():
@@ -16,7 +17,7 @@ def create_start_markup():
 	return builder.as_markup()
 
 
-def create_main_menu_markup():
+def create_main_menu_markup(userid):
 	builder = InlineKeyboardBuilder()
 
 	builder.row(InlineKeyboardButton(text='💻️ Профиль', callback_data='profile'))
@@ -43,7 +44,9 @@ def create_main_menu_markup():
 	builder.row(InlineKeyboardButton(text='🙎‍♂️ Рефка', callback_data='referal'))
 	builder.row(InlineKeyboardButton(text='🔮 Статус', callback_data='status'))
 	builder.row(InlineKeyboardButton(text='🔥 О нас', callback_data='about_us'))
-	builder.row(InlineKeyboardButton(text='⭐️ Админка', callback_data='adminpanel'))
+
+	if userid in config.secrets.ADMINS_IDS:
+		builder.row(InlineKeyboardButton(text='⭐️ Админка', callback_data='adminpanel'))
 
 	builder.adjust(2)
 
@@ -167,7 +170,7 @@ def create_achievements_markup(alerts: bool):
 	else:
 		builder.row(
 			InlineKeyboardButton(
-				text='✅ Включить уведомления', callback_data='achievements_false'
+				text='✅ Включить уведомления', callback_data='achievements_true'
 			)
 		)
 	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='showmenu'))
