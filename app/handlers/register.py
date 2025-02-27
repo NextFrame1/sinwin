@@ -87,6 +87,9 @@ async def cmd_start(message: Message):
 		print(traceback.format_exc())
 		partner = None
 
+	if partner:
+		users[message.from_user.id] = {'final': True, 'count': 0}
+
 	if (
 		users.get(message.from_user.id) is not None
 		or partner is not None
@@ -101,7 +104,7 @@ async def cmd_start(message: Message):
 			await message.answer(
 				'🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!',
 				parse_mode=ParseMode.HTML,
-				reply_markup=inlinem.create_main_menu_markup(),
+				reply_markup=inlinem.create_main_menu_markup(message.from_user.id),
 			)
 			return
 

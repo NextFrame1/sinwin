@@ -264,7 +264,7 @@ def create_withdraw_markup():
 	builder.row(InlineKeyboardButton(text='💳️ Карта', callback_data='withdraw_card'))
 	builder.row(
 		InlineKeyboardButton(
-			text='📱 Вывод по номеру', callback_data='withdraw_by_phone'
+			text='📱 Вывод по номеру', callback_data='withdraw_phone'
 		)
 	)
 	builder.row(
@@ -348,19 +348,19 @@ def create_cancel_reason_markup(transaction_id):
 	return builder.as_markup()
 
 
-def create_admin_transaction_menu(transaction_id, admin_id):
+def create_admin_transaction_menu(transaction_id, admin_id, method: str = 'card'):
 	builder = InlineKeyboardBuilder()
 
 	builder.row(
 		InlineKeyboardButton(
 			text='✅ Подтвердить',
-			callback_data=f'badmin_approve_transaction{transaction_id}',
+			callback_data=f'badmin_approve_transaction{transaction_id}.{method}',
 		)
 	)
 	builder.row(
 		InlineKeyboardButton(
 			text='❌ Отклонить',
-			callback_data=f'badmin_disapprove_transaction{transaction_id}_{admin_id}',
+			callback_data=f'badmin_disapprove_transaction{transaction_id}_{admin_id}.{method}',
 		)
 	)
 
@@ -369,12 +369,12 @@ def create_admin_transaction_menu(transaction_id, admin_id):
 	return builder.as_markup()
 
 
-def create_withdraw_continue_markup(callback: str = 'showmenu'):
+def create_withdraw_continue_markup(callback: str = 'showmenu', withdraw: str = 'card'):
 	builder = InlineKeyboardBuilder()
 
 	builder.row(
 		InlineKeyboardButton(
-			text='✅ Подтвердить', callback_data='user_approve_card_withdraw'
+			text='✅ Подтвердить', callback_data=f'user_approve_{withdraw}_withdraw'
 		)
 	)
 	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data=callback))

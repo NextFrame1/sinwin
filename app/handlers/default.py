@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from random import randint
 from typing import Dict, Any
 from aiogram import F, Router
 from aiogram.enums import ParseMode
@@ -48,14 +49,39 @@ class CardWithdrawGroup(StatesGroup):
 	approved = State()
 
 
-class SteamWidthDrawGroup(StatesGroup):
+class SteamWithdrawGroup(StatesGroup):
 	withdraw_sum = State()
-	steam_login = State()
+	withdraw_card = State()
+	approved = State()
+
+
+class PhonenumberWithdrawGroup(StatesGroup):
+	withdraw_sum = State()
+	withdraw_card = State()
+	approved = State()
+
+
+class CryptoWithdrawGroup(StatesGroup):
+	withdraw_sum = State()
+	withdraw_card = State()
+	limit = State()
+	approved = State()
+
+
+class FKWalletWithdrawGroup(StatesGroup):
+	withdraw_sum = State()
+	withdraw_card = State()
+	approved = State()
+
+
+class PiastrixWithdrawGroup(StatesGroup):
+	withdraw_sum = State()
+	withdraw_card = State()
+	approved = State()
 
 
 class PromoGroup(StatesGroup):
 	promocode = State()
-
 
 class CancelTransaction(StatesGroup):
 	transac = State()
@@ -786,34 +812,36 @@ async def referal_answer_callback(call: CallbackQuery):
 
 
 def check_achievements(users_count, income, deposits_sum, first_deposits_count):
-	achievements = ["🏆️ Ваши Цели:\n",]
+	achievements = ["🏆️ Ваши достижения:\n",]
 
 	thresholds = {
-		'users_count': [],
-		'deposits_sum': [],
-		'income': [],
-		'first_deposits_count': [],
+		'users_count': ['0'],
+		'deposits_sum': ['0'],
+		'income': ['0'],
+		'first_deposits_count': ['0'],
 	}
 
 	for threshold in ACHIEVEMENTS["users"]:
 		if users_count >= threshold:
-			thresholds['users_count'].append(threshold)
+			thresholds['users_count'].append(str(threshold))
 
 	for threshold in ACHIEVEMENTS["deposits"]:
 		if deposits_sum >= threshold:
-			thresholds['deposits_sum'].append(threshold)
+			thresholds['deposits_sum'].append(str(threshold))
 	
 	for threshold in ACHIEVEMENTS["income"]:
 		if income >= threshold:
-			thresholds['income'].append(threshold)
+			thresholds['income'].append(str(threshold))
 
 	for threshold in ACHIEVEMENTS["first_deposits"]:
 		if first_deposits_count >= threshold:
-			thresholds['first_deposits_count'].append(threshold)
+			thresholds['first_deposits_count'].append(str(threshold))
 	
-	achievements.append(f'✅ Пользователей по Вашим ссылкам: {",".join(thresholds["users_count"])}')
-	achievements.append(f'✅ Депозиты: {",".join(thresholds["deposits_sum"])}')
-	achievements.append(f'✅ Доход: {",".join(thresholds["income"])}')
+	count = len(thresholds["users_count"]) + len(thresholds["deposits_sum"]) + len(thresholds["income"]) + len(thresholds["first_deposits_count"]) - 4
+	
+	achievements.append(f'Количество: {count}\n\n✅ Пользователей по Вашим ссылкам: {",".join(thresholds["users_count"])}\n')
+	achievements.append(f'✅ Депозиты: {",".join(thresholds["deposits_sum"])}\n')
+	achievements.append(f'✅ Доход: {",".join(thresholds["income"])}\n')
 	achievements.append(f'✅ Первые депозиты: {",".join(thresholds["first_deposits_count"])}')
 
 	return achievements
@@ -821,23 +849,50 @@ def check_achievements(users_count, income, deposits_sum, first_deposits_count):
 
 @default_router.callback_query(F.data.startswith("reload_achievs"), only_confirmed)
 async def reload_achievs_callback(call: CallbackQuery):
-	await call.answer("Вы не выполнили не одного достижения", show_alert=True)
+	global user_achievements
+	data = user_achievements[call.from_user.id]
+	data['achievements'] = []
+	user_achievements[call.from_user.id] = data
+	await call.answer("Обновили список достижений", show_alert=True)
 
 
 @default_router.callback_query(F.data.startswith("my_achievs"), only_confirmed)
 async def my_achievs_callback(call: CallbackQuery):
 
-	messages = [
-		"🏆️ Ваши достижения\n",
-		f"Количество: 0\n",
-		"✅ Пользователей по Вашим ссылкам: 100, 250\n",
-		"✅ Депозиты: 10 000, 25 000, 50 000 рублей\n",
-		"✅ Доход: 5 000, 10 000, 25 000 рублей\n",
-		"✅ Первые депозиты: 25, 50, 75, 100, 150\n",
-		"Топ Воркеров:\n",
-		"🥇 1 место за декабрь 2024\n",
-		"Продолжайте в том же духе и достигайте новых высот! 🌟",
-	]
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"]
+
+	messages = []
+	
+	if partner:
+		partner = partner[-1]
+	else:
+		await call.answer("Вы еще не зарегистрированы в системе")
+
+	if not partner["approved"]:
+		print(partner)
+		users[call.from_user.id] = users.get(call.from_user.id, {})
+		users[call.from_user.id]["final"] = False
+		await call.answer("Вы заблокированы")
+		return
+
+	result, code = await APIRequest.get(f"/base/achstats?partnerhash={partner["partner_hash"]}")
+
+	cpartners = await APIRequest.post(
+		"/partner/find", {"opts": {"referrer_hash": partner["partner_hash"]}}
+	)
+	cpartners = cpartners[0]["partners"]
+
+	opts = {"game": "Mines", "referal_parent": partner["partner_hash"]}
+	data = await collect_stats(opts)
+
+	achievements = check_achievements(data['users_count'], result['income'], result['deposits_sum'], result['first_deposits_count'])
+
+	messages += achievements
+
+	messages.append("\nПродолжайте в том же духе и достигайте новых высот! 🌟")
 
 	await call.message.edit_text(
 		"\n".join(messages),
@@ -845,38 +900,40 @@ async def my_achievs_callback(call: CallbackQuery):
 		reply_markup=inline.create_back_markup("achievements"),
 	)
 
+	messages = []
+
 
 def check_achievements_var2(users_count, income, deposits_sum, first_deposits_count, referrals_count, signals_count):
 	achievements = ["🏆️ Ваши Цели:\n",]
 
 	for threshold in ACHIEVEMENTS["users"]:
 		if users_count < threshold:
-			achievements.append(f'❌ Пользователей по вашим ссылкам: {users_count}')
+			achievements.append(f'❌ Пользователей по вашим ссылкам: {threshold}')
 			break
 
 	for threshold in ACHIEVEMENTS["deposits"]:
 		if deposits_sum < threshold:
-			achievements.append(f"❌ Депозиты: {deposits_sum} рублей")
+			achievements.append(f"❌ Депозиты: {threshold} рублей")
 			break
 	
 	for threshold in ACHIEVEMENTS["income"]:
 		if income < threshold:
-			achievements.append(f"❌ Доход: {income} рублей")
+			achievements.append(f"❌ Доход: {threshold} рублей")
 			break
 
 	for threshold in ACHIEVEMENTS["first_deposits"]:
 		if first_deposits_count < threshold:
-			achievements.append(f"❌ Первые депозиты: {first_deposits_count}")
+			achievements.append(f"❌ Первые депозиты: {threshold}")
 			break
 	
 	for threshold in ACHIEVEMENTS["referrals"]:
 		if referrals_count<= threshold:
-			achievements.append(f"❌ Количество рефералов: {cpartners}")
+			achievements.append(f"❌ Количество рефералов: {threshold}")
 			break
 
 	for threshold in ACHIEVEMENTS["signals"]:
 		if signals_count < threshold:
-			achievements.append(f"❌ Сгенерировано сигналов: {signals_count}")
+			achievements.append(f"❌ Сгенерировано сигналов: {threshold}")
 			break
 
 	return achievements
@@ -897,6 +954,8 @@ async def achievements_callback(call: CallbackQuery):
 		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
 	)
 	partner = partners[0]["partners"]
+
+	messages = []
 	
 	if partner:
 		partner = partner[-1]
@@ -910,10 +969,10 @@ async def achievements_callback(call: CallbackQuery):
 		await call.answer("Вы заблокированы")
 		return
 
-	if user_achievements.get(call.from_user.id, {}):
+	if user_achievements.get(call.from_user.id, {}).get('achievements', []):
 		achievements = user_achievements.get(call.from_user.id, {})
 
-		messages = achievements
+		messages += achievements['achievements']
 	else:
 		result, code = await APIRequest.get(f"/base/achstats?partnerhash={partner["partner_hash"]}")
 
@@ -925,26 +984,26 @@ async def achievements_callback(call: CallbackQuery):
 		opts = {"game": "Mines", "referal_parent": partner["partner_hash"]}
 		data = await collect_stats(opts)
 
+		print(result)
+
 		achievements = check_achievements_var2(data['users_count'], result['income'], result['deposits_sum'], result['first_deposits_count'],
 										len(cpartners), result['signals_count'])
 
-		count = len(achievements)
+		messages += achievements
 
-		messages = achievements
+		data = user_achievements.get(call.from_user.id, {})
+		data['achievements'] = achievements
+		user_achievements[call.from_user.id] = data
 
-		user_achievements[call.from_user.id] = achievements
-
-	messages.append(
-		"✅ Уведомления включены\n" if user_achievements.get(call.from_user.id, {}).get('alerts', True) else "❌ Уведомления выключены\n"
-	)
-
-	messages.append("Продолжайте в том же духе и достигайте новых высот! 🌟")
+	messages += ["\n✅ Уведомления включены\n" if user_achievements.get(call.from_user.id, {}).get('alerts', True) else "\n❌ Уведомления выключены\n", "Продолжайте в том же духе и достигайте новых высот! 🌟"]
 
 	await call.message.edit_text(
 		"\n".join(messages),
 		parse_mode=ParseMode.HTML,
 		reply_markup=inline.create_achievements_markup(user_achievements.get(call.from_user.id, {}).get('alerts', True)),
 	)
+
+	messages = []
 
 
 @default_router.callback_query(F.data == "record_creo", only_confirmed)
@@ -1308,6 +1367,7 @@ async def status_callback(call: CallbackQuery):
 		await call.answer(
 			"Для просмотра условий перехода статусов обратитесь к админ-панели."
 		)
+		return
 	else:
 		partners = await APIRequest.post(
 			"/partner/find", {"opts": {"tg_id": call.from_user.id}}
@@ -1490,7 +1550,6 @@ async def status_callback(call: CallbackQuery):
 Если за 24 часа статус не меняется, напишите в поддержку""",
 				reply_markup=inline.create_status_up_master_markup(),
 			)
-
 			for admin in config.secrets.ADMINS_IDS:
 				try:
 					await bot.send_message(
@@ -1609,6 +1668,7 @@ API за все время: {api_count}
 				)
 
 			partner["status"] = get_next_level(partner["status"])
+			partner["percent"] = get_percent_by_status(partner["status"])
 
 			await APIRequest.post("/partner/update", {**partner})
 			return
@@ -1633,6 +1693,14 @@ async def send_message_about_status_change(status: str, userid: int):
 """,
 			reply_markup=inline.create_status_up_markup(),
 		)
+
+		partner = await APIRequest.post("/partner/find", {"opts": {"tg_id": userid}})
+		partner = partner[0]["partners"][-1]
+
+		partner["status"] = "мастер"
+		partner["percent"] = 50
+
+		await APIRequest.post("/partner/update", {**partner})
 	else:
 		await bot.send_message(
 			chat_id=userid,
@@ -2085,7 +2153,8 @@ async def withdraw_callback(call: CallbackQuery):
 
 
 @default_router.callback_query(F.data == "withdraw_crypto", only_confirmed)
-async def withdraw_crypto_callback(call: CallbackQuery):
+async def withdraw_crypto_callback(call: CallbackQuery, state: FSMContext):
+	await state.clear()
 	messages = [
 		"Какую криптовалюту вы хотите использовать для вывода денег?\n",
 		"<b>ЛИМИТЫ НА ВЫВОД СРЕДСТВ</b>",
@@ -2095,7 +2164,7 @@ async def withdraw_crypto_callback(call: CallbackQuery):
 		"Tether ERC20 - 1 500 ₽ - 5 000 000 ₽",
 		"Tether TRC20 - 1 500 ₽ - 5 000 000 ₽",
 		"Tether BEP20 - 1 500 ₽ - 5 000 000 ₽",
-		"BNB ERC20 - 1 500 ₽ - 655 070 ₽",
+		"BNB BEP20 - 1 500 ₽ - 655 070 ₽",
 		"Litecoin - 1 500 ₽ - 665 000 ₽",
 		"Monero - 1 500 ₽ - 665 070 ₽",
 		"Bitcoin Cash - 1 500 ₽ - 665 070 ₽",
@@ -2111,6 +2180,192 @@ async def withdraw_crypto_callback(call: CallbackQuery):
 		parse_mode=ParseMode.HTML,
 		reply_markup=inline.create_crypto_withdraw_markup(),
 	)
+
+	await state.set_state(CryptoWithdrawGroup.withdraw_card)
+
+
+@default_router.callback_query(F.data.startswith("crypto_set_withdraw_"), CryptoWithdrawGroup.withdraw_card, only_confirmed)
+async def crypto_set_withdraw_type(call: CallbackQuery, state: FSMContext):
+	crypto_type = call.data.replace('crypto_set_withdraw_', '').lower()
+
+	limits = {
+		'bitcoin': (10650.0, 665000.0),
+		'ethereum': (1000.0, 665000.0),
+		'tether erc20': (1500.0, 5000000.0),
+		'tether trc20': (1500.0, 5000000.0),
+		'tether bep20': (1500.0, 5000000.0),
+	}
+
+	limit = limits.get(crypto_type, (1500.0, 665070.0))
+
+	await state.update_data(withdraw_card=crypto_type, limit=limit)
+
+	users[call.message.chat.id] = {
+		"final": True,
+		"withdraw_card": True,
+	}
+
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"][-1]
+
+	if not partner["approved"]:
+		print(partner)
+		users[call.from_user.id] = users.get(call.from_user.id, {})
+		users[call.from_user.id]["final"] = False
+		await call.answer("Вы заблокированы")
+		return
+	
+	message = f"💰️ Баланс: {partner['balance']} RUB\nВывод на криптовалюту {crypto_type.upper()}\nЛимит одного вывода: от {limit[0]} ₽ до {limit[1]} ₽\n\n✍️ Введите сумму которую Вы хотите вывести."
+
+	image = FSInputFile(path=f"{config.SINWIN_DATA}/main/steam.jpg")
+
+	await call.message.edit_media(
+		InputMediaPhoto(media=image, caption=message, parse_mode=ParseMode.HTML),
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.create_back_markup("withdraw"),
+	)
+
+	await state.set_state(CryptoWithdrawGroup.withdraw_sum)
+
+
+@default_router.message(
+	F.text, CryptoWithdrawGroup.withdraw_sum, message_only_confirmed
+)
+async def withdraw_crypto_message(message: Message, state: FSMContext):
+	user = users.get(message.chat.id, {})
+
+	try:
+		partners = await APIRequest.post(
+			"/partner/find", {"opts": {"tg_id": message.from_user.id}}
+		)
+		partner = partners[0]["partners"][-1]
+	except Exception as ex:
+		await message.answer(
+			f"Произошла ошибка: {ex}",
+			reply_markup=inline.create_back_markup("profile"),
+		)
+		return
+
+	try:
+		sum_to_withdraw = int(message.text)
+	except Exception:
+		await message.answer(
+			"Ошибка: некорректный ввод\n\nПожалуйста, введите корректную сумму для вывода, используя только цифры.",
+			reply_markup=inline.create_back_markup("withdraw_crypto"),
+		)
+		await state.clear()
+		return
+	
+	data = await state.get_data()
+
+	if user.get("final", False) and user.get("withdraw_card", False):
+		if partner["balance"] < sum_to_withdraw:
+			await message.answer(
+				f"💰️ Баланс: {partner['balance']} RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
+				reply_markup=inline.create_back_markup("withdraw_crypto"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		elif sum_to_withdraw > data['limit'][1]:
+			await message.answer(
+				f"Ошибка: сумма превышает лимит\n\nСумма {sum_to_withdraw} превышает максимально допустимую для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам:",
+				reply_markup=inline.create_back_markup("withdraw_crypto"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		elif sum_to_withdraw < data['limit'][0]:
+			await message.answer(
+				f"Ошибка: сумма слишком мала\n\nСумма {sum_to_withdraw} меньше минимально допустимой для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам.",
+				reply_markup=inline.create_back_markup("withdraw_crypto"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		else:
+			await state.update_data(withdraw_sum=sum_to_withdraw)
+			data = await state.get_data()
+			await message.answer(
+				f"Вывод на криптовалюту принят.\n\nПожалуйста, подтвердите вывод средств. Сумма: {data.get('withdraw_sum')} ₽\n\nКриптовалюта: {data.get('withdraw_card')}",
+				reply_markup=inline.create_withdraw_continue_markup(withdraw='crypto'),
+			)
+			await state.set_state(CryptoWithdrawGroup.approved)
+
+
+@default_router.callback_query(
+	F.data == "user_approve_crypto_withdraw",
+	CryptoWithdrawGroup.approved,
+	message_only_confirmed,
+)
+async def user_approve_crypto_withdraw(call: CallbackQuery, state: FSMContext):
+	data = await state.get_data()
+	user = users.get(call.message.chat.id, {})
+	user["withdraw_card"] = False
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"][-1]
+	await state.clear()
+
+	partner_hash = partner.get("partner_hash", "Недоступно")
+
+	result, status = await APIRequest.post(
+		"/transaction/create",
+		data={
+			"partner_hash": partner_hash,
+			"username": str(call.from_user.username),
+			"amount": data["withdraw_sum"],
+			"withdraw_card": data["withdraw_card"],
+			"approved": False,
+			"preview_id": int(f'{datetime.now().strftime("%d%m%H%M%S")}{randint(1000, 9999)}'),
+		},
+	)
+
+	if status != 200:
+		await call.answer(f"ошибка: {status}")
+		return
+
+	transaction_id = result.get("transaction_id", 0)
+
+	transactions = await APIRequest.post(
+		"/transaction/find", {"opts": {"id": transaction_id}}
+	)
+	transac = transactions[0]["transactions"][-1]
+
+	await call.message.edit_text(
+		f"Ваш запрос на вывод средств поставлен в очередь.\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transac["preview_id"]}\n\nВ течение 24 часов бот уведомит вас о статусе вывода. Если за это время вы не получите уведомление, пожалуйста, обратитесь в поддержку.",
+		reply_markup=inline.create_back_markup("profile"),
+	)
+
+	tdata = withdraws_history.get(partner_hash, {})
+	tdata[transac["preview_id"]] = {
+		"status": "⚪️ Вывод на обработке",
+		"type": "👑 Крипта",
+		"sum": data["withdraw_sum"],
+		"date": datetime.now(),
+	}
+	withdraws_history[partner_hash] = tdata
+
+	transactions_dict[transaction_id] = data
+
+	image = FSInputFile(path=f"{config.SINWIN_DATA}/main/crupto.jpg")
+
+	for admin in config.secrets.ADMINS_IDS:
+		await bot.send_photo(
+			chat_id=admin,
+			photo=image,
+			caption=f"""Tg id: {call.from_user.id}
+Ник: {call.from_user.username}
+Реферал: {partner["is_referal"]}
+Хэш: {partner_hash}
+Id Вывода: {transac["preview_id"]}
+
+Вывод: 👑 Крипта
+Сумма: <code>{data["withdraw_sum"]}</code>₽
+Криптовалюта: <code>{data["withdraw_card"]}</code>""",
+			parse_mode=ParseMode.HTML,
+			reply_markup=inline.create_admin_transaction_menu(transaction_id, admin, 'crypto'),
+		)
 
 
 @default_router.callback_query(F.data == "withdraw_card", only_confirmed)
@@ -2174,9 +2429,9 @@ async def withdraw_card_message(message: Message, state: FSMContext):
 		return
 
 	if user.get("final", False) and user.get("withdraw_card", False):
-		if partner["balance"] < 2000.0:
+		if partner["balance"] < sum_to_withdraw:
 			await message.answer(
-				"💰️ Баланс: 0 RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
+				f"💰️ Баланс: {partner['balance']} RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
 				reply_markup=inline.create_back_markup("withdraw_card"),
 			)
 			await state.clear()
@@ -2259,6 +2514,7 @@ async def user_approve_card_withdraw(call: CallbackQuery, state: FSMContext):
 			"amount": data["withdraw_sum"],
 			"withdraw_card": data["withdraw_card"],
 			"approved": False,
+			"preview_id": int(f'{datetime.now().strftime("%d%m%H%M%S")}{randint(1000, 9999)}'),
 		},
 	)
 
@@ -2305,12 +2561,11 @@ Id Вывода: {transac["preview_id"]}
 Сумма: <code>{data["withdraw_sum"]}</code>₽
 Карта: <code>{data["withdraw_card"]}</code>""",
 			parse_mode=ParseMode.HTML,
-			reply_markup=inline.create_admin_transaction_menu(transaction_id, admin),
+			reply_markup=inline.create_admin_transaction_menu(transaction_id, admin, 'card'),
 		)
 
-
 async def send_message_about_transaction_to_user(
-	sum_to_withdraw, partner_hash: str, transaction_id: int, scheduler
+	sum_to_withdraw, partner_hash: str, transaction_id: int, scheduler, transactype: str = '💳 Карта'
 ):
 	partners = await APIRequest.post(
 		"/partner/find", {"opts": {"partner_hash": partner_hash}}
@@ -2324,6 +2579,13 @@ async def send_message_about_transaction_to_user(
 
 	scheduler.remove_job(f"sendtransac_{transaction_id}")
 
+	if partner['balance'] - int(sum_to_withdraw.replace(" ", "")) < 0.0:
+		await bot.send_message(
+            chat_id=partner["tg_id"],
+            text=f"❌ Ваш вывод был отклонен системой по причине: недостаточно средств на балансе.\n\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transac['preview_id']}\n\nСумма вывода: {sum_to_withdraw}₽",
+			reply_markup=inline.create_back_markup("profile"))
+		return
+
 	partner["balance"] -= int(sum_to_withdraw.replace(" ", ""))
 
 	transactions_schedulded[transaction_id] = False
@@ -2331,7 +2593,7 @@ async def send_message_about_transaction_to_user(
 	tdata = withdraws_history.get(partner_hash, {})
 	tdata[transac['preview_id']] = {
 		"status": "🟢 Вывод произведен",
-		"type": "💳 Карта",
+		"type": transactype,
 		"sum": transac["amount"],
 		"date": datetime.now(),
 	}
@@ -2347,7 +2609,7 @@ async def send_message_about_transaction_to_user(
 
 
 async def send_message_about_ftransaction_to_user(
-	reason, sum_to_withdraw, partner_hash: str, transaction_id: int, scheduler
+	reason, sum_to_withdraw, partner_hash: str, transaction_id: int, scheduler, transactype: str = '💳 Карта'
 ):
 	# 🟢🟡⚪️
 	partners = await APIRequest.post(
@@ -2365,9 +2627,9 @@ async def send_message_about_ftransaction_to_user(
 	transactions_schedulded[transaction_id] = False
 
 	tdata = withdraws_history.get(partner_hash, {})
-	tdata[{transac['preview_id']}] = {
+	tdata[transac['preview_id']] = {
 		"status": "🟡 Вывод отклонен",
-		"type": "💳 Карта",
+		"type": transactype,
 		"sum": transac["amount"],
 		"date": datetime.now(),
 	}
@@ -2389,12 +2651,39 @@ async def send_message_about_ftransaction_to_user(
 	)
 
 
+def get_emoji_by_method(method: str) -> str:
+	if method == 'card':
+		return '💳 Карта'
+	elif method == 'steam':
+		return '⚙️ Steam'
+	elif method == 'crypto':
+		return '👑 Крипта'
+	elif method == 'phone':
+		return '📱 Вывод по номеру'
+	elif method == 'piastrix':
+		return '🌸 Piastrix'
+	elif method == 'fkwallet':
+		return '👾 FK Wallet'
+
+
 @default_router.callback_query(F.data.startswith("badmin_approve_transaction"))
 async def admin_approve_transaction(call: CallbackQuery, scheduler=scheduler):
+	data = call.data.split('.')
+	method = data[-1]
+	data = data[0]
 	transaction_id = int(
-		call.data.replace("badmin_approve_transaction", "").split("_")[0]
+		data.replace("badmin_approve_transaction", "").split("_")[0]
 	)
 	await call.answer()
+
+	names = {
+		'card': 'Карта',
+		'steam': 'Steam логин',
+		'crypto': 'Криптовалюта',
+		'piastrix': 'Piastrix',
+		'fkwallet': 'FK Wallet',
+		'phone': 'Номер телефона',
+	}
 
 	transactions = await APIRequest.post(
 		"/transaction/find", {"opts": {"id": transaction_id}}
@@ -2426,7 +2715,7 @@ async def admin_approve_transaction(call: CallbackQuery, scheduler=scheduler):
 	scheduler.add_job(
 		send_message_about_transaction_to_user,
 		trigger=IntervalTrigger(seconds=180),
-		args=(sum_to_withdraw, transaction["partner_hash"], transaction_id, scheduler),
+		args=(sum_to_withdraw, transaction["partner_hash"], transaction_id, scheduler, get_emoji_by_method(method)),
 		id=f"sendtransac_{transaction_id}",
 		replace_existing=True,
 	)
@@ -2440,9 +2729,9 @@ async def admin_approve_transaction(call: CallbackQuery, scheduler=scheduler):
 🛡 Хэш: {transaction["partner_hash"]}
 🆔 ID Вывода: {transaction["preview_id"]}
 
-Вывод: 💳 Карта
+Вывод: {get_emoji_by_method(method)}
 Сумма: {sum_to_withdraw}
-Карта: <code>{data["withdraw_card"]}</code>""",
+{names.get(method, 'Данные')}: <code>{data["withdraw_card"]}</code>""",
 			parse_mode=ParseMode.HTML,
 			reply_markup=inline.admin_change_transaction(transaction_id),
 		)
@@ -2470,6 +2759,8 @@ async def badmin_dispprove_transaction(call: CallbackQuery, state: FSMContext):
 
 	await APIRequest.post("/transaction/update", {**transaction})
 
+	await call.answer()
+
 	await bot.send_message(
 		chat_id=admin_id,
 		text="Напишите причину отказа",
@@ -2489,6 +2780,8 @@ async def empty_cancel_reason(
 
 	data = await state.get_data()
 	data = data["transac"]
+
+	await call.answer()
 
 	transactions = await APIRequest.post(
 		"/transaction/find", {"opts": {"id": data["id"]}}
@@ -2649,8 +2942,753 @@ Id Вывода: {transaction["preview_id"]}
 Сумма: <code>{transaction["amount"]}</code>₽
 Карта: <code>{transaction["withdraw_card"]}</code>""",
 			parse_mode=ParseMode.HTML,
-			reply_markup=inline.create_admin_transaction_menu(transaction_id, admin),
+			reply_markup=inline.create_admin_transaction_menu(transaction_id, admin, 'card'),
 		)
+
+
+############ STEAM
+
+@default_router.callback_query(F.data == "withdraw_steam", message_only_confirmed)
+async def withdraw_steam_callback(call: CallbackQuery, state: FSMContext):
+	await state.clear()
+
+	users[call.message.chat.id] = {
+		"final": True,
+		"withdraw_card": True,
+	}
+
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"][-1]
+
+	if not partner["approved"]:
+		print(partner)
+		users[call.from_user.id] = users.get(call.from_user.id, {})
+		users[call.from_user.id]["final"] = False
+		await call.answer("Вы заблокированы")
+		return
+	
+	message = f"💰️ Баланс: {partner['balance']} RUB\nВывод на аккаунт Steam\nЛимит одного вывода: от 2 000 ₽ до 12 000 ₽\n\n✍️ Введите сумму которую Вы хотите вывести."
+
+	image = FSInputFile(path=f"{config.SINWIN_DATA}/main/steam.jpg")
+
+	await call.message.edit_media(
+		InputMediaPhoto(media=image, caption=message, parse_mode=ParseMode.HTML),
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.create_back_markup("withdraw"),
+	)
+
+	await state.set_state(SteamWithdrawGroup.withdraw_sum)
+
+
+@default_router.message(
+	F.text, SteamWithdrawGroup.withdraw_sum, message_only_confirmed
+)
+async def withdraw_steam_message(message: Message, state: FSMContext):
+	user = users.get(message.chat.id, {})
+
+	try:
+		partners = await APIRequest.post(
+			"/partner/find", {"opts": {"tg_id": message.from_user.id}}
+		)
+		partner = partners[0]["partners"][-1]
+	except Exception as ex:
+		await message.answer(
+			f"Произошла ошибка: {ex}",
+			reply_markup=inline.create_back_markup("profile"),
+		)
+		return
+
+	try:
+		sum_to_withdraw = int(message.text)
+	except Exception:
+		await message.answer(
+			"Ошибка: некорректный ввод\n\nПожалуйста, введите корректную сумму для вывода, используя только цифры.",
+			reply_markup=inline.create_back_markup("withdraw_steam"),
+		)
+		await state.clear()
+		return
+
+	if user.get("final", False) and user.get("withdraw_card", False):
+		if partner["balance"] < sum_to_withdraw:
+			await message.answer(
+				f"💰️ Баланс: {partner['balance']} RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
+				reply_markup=inline.create_back_markup("withdraw_steam"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		elif sum_to_withdraw > 12000.0:
+			await message.answer(
+				f"Ошибка: сумма превышает лимит\n\nСумма {sum_to_withdraw} превышает максимально допустимую для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам:",
+				reply_markup=inline.create_back_markup("withdraw_steam"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		elif sum_to_withdraw < 2000.0:
+			await message.answer(
+				f"Ошибка: сумма слишком мала\n\nСумма {sum_to_withdraw} меньше минимально допустимой для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам.",
+				reply_markup=inline.create_back_markup("withdraw_steam"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		else:
+			await state.update_data(withdraw_sum=sum_to_withdraw)
+			await message.answer(
+				f"Сумма вывода: {sum_to_withdraw} ₽\n\nУкажите ваш логин аккаунта steam\n\nВы можете узнать ваш Steam login кликнув по <a href='https://store.steampowered.com/account/'>прямой ссылке</a>",
+				reply_markup=inline.create_back_markup("withdraw_steam"),
+				parse_mode=ParseMode.HTML,
+			)
+			await state.set_state(SteamWithdrawGroup.withdraw_card)
+
+
+@default_router.message(F.text, SteamWithdrawGroup.withdraw_card, message_only_confirmed)
+async def withdraw_withdraw_steam_message(message: Message, state: FSMContext):
+	text = message.text
+
+	await state.update_data(withdraw_card=text)
+	data = await state.get_data()
+	await message.answer(
+		f"Логин Steam принят.\n\nПожалуйста, подтвердите вывод средств. Сумма: {data.get('withdraw_sum')} ₽\n\nSteam: {text}",
+		reply_markup=inline.create_withdraw_continue_markup(withdraw='steam'),
+	)
+	await state.set_state(SteamWithdrawGroup.approved)
+
+
+@default_router.callback_query(
+	F.data == "user_approve_steam_withdraw",
+	SteamWithdrawGroup.approved,
+	message_only_confirmed,
+)
+async def user_approve_steam_withdraw(call: CallbackQuery, state: FSMContext):
+	data = await state.get_data()
+	user = users.get(call.message.chat.id, {})
+	user["withdraw_card"] = False
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"][-1]
+	await state.clear()
+
+	partner_hash = partner.get("partner_hash", "Недоступно")
+
+	result, status = await APIRequest.post(
+		"/transaction/create",
+		data={
+			"partner_hash": partner_hash,
+			"username": str(call.from_user.username),
+			"amount": data["withdraw_sum"],
+			"withdraw_card": data["withdraw_card"],
+			"approved": False,
+			"preview_id": int(f'{datetime.now().strftime("%d%m%H%M%S")}{randint(1000, 9999)}'),
+		},
+	)
+
+	if status != 200:
+		await call.answer(f"ошибка: {status}")
+		return
+
+	transaction_id = result.get("transaction_id", 0)
+
+	transactions = await APIRequest.post(
+		"/transaction/find", {"opts": {"id": transaction_id}}
+	)
+	transac = transactions[0]["transactions"][-1]
+
+	await call.message.edit_text(
+		f"Ваш запрос на вывод средств поставлен в очередь.\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transac["preview_id"]}\n\nВ течение 24 часов бот уведомит вас о статусе вывода. Если за это время вы не получите уведомление, пожалуйста, обратитесь в поддержку.",
+		reply_markup=inline.create_back_markup("profile"),
+	)
+
+	tdata = withdraws_history.get(partner_hash, {})
+	tdata[transac["preview_id"]] = {
+		"status": "⚪️ Вывод на обработке",
+		"type": "⚙️ Steam",
+		"sum": data["withdraw_sum"],
+		"date": datetime.now(),
+	}
+	withdraws_history[partner_hash] = tdata
+
+	transactions_dict[transaction_id] = data
+
+	image = FSInputFile(path=f"{config.SINWIN_DATA}/main/steam.jpg")
+
+	for admin in config.secrets.ADMINS_IDS:
+		await bot.send_photo(
+			chat_id=admin,
+			photo=image,
+			caption=f"""Tg id: {call.from_user.id}
+Ник: {call.from_user.username}
+Реферал: {partner["is_referal"]}
+Хэш: {partner_hash}
+Id Вывода: {transac["preview_id"]}
+
+Вывод: ⚙️ Steam
+Сумма: <code>{data["withdraw_sum"]}</code>₽
+Steam логин: <code>{data["withdraw_card"]}</code>""",
+			parse_mode=ParseMode.HTML,
+			reply_markup=inline.create_admin_transaction_menu(transaction_id, admin, 'steam'),
+		)
+
+############## PHONE NUMBER
+
+@default_router.callback_query(F.data == "withdraw_phone", message_only_confirmed)
+async def withdraw_phone_callback(call: CallbackQuery, state: FSMContext):
+	await state.clear()
+
+	users[call.message.chat.id] = {
+		"final": True,
+		"withdraw_card": True,
+	}
+
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"][-1]
+
+	if not partner["approved"]:
+		print(partner)
+		users[call.from_user.id] = users.get(call.from_user.id, {})
+		users[call.from_user.id]["final"] = False
+		await call.answer("Вы заблокированы")
+		return
+	
+	message = f"💰️ Баланс: {partner['balance']} RUB\nВывод по номеру телефона\nЛимит одного вывода: от 5 000 ₽ до 100 000 ₽\n\n✍️ Введите сумму которую Вы хотите вывести."
+
+	image = FSInputFile(path=f"{config.SINWIN_DATA}/main/telefon.jpg")
+
+	await call.message.edit_media(
+		InputMediaPhoto(media=image, caption=message, parse_mode=ParseMode.HTML),
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.create_back_markup("withdraw"),
+	)
+
+	await state.set_state(PhonenumberWithdrawGroup.withdraw_sum)
+
+
+@default_router.message(
+	F.text, PhonenumberWithdrawGroup.withdraw_sum, message_only_confirmed
+)
+async def withdraw_phone_message(message: Message, state: FSMContext):
+	user = users.get(message.chat.id, {})
+
+	try:
+		partners = await APIRequest.post(
+			"/partner/find", {"opts": {"tg_id": message.from_user.id}}
+		)
+		partner = partners[0]["partners"][-1]
+	except Exception as ex:
+		await message.answer(
+			f"Произошла ошибка: {ex}",
+			reply_markup=inline.create_back_markup("profile"),
+		)
+		return
+
+	try:
+		sum_to_withdraw = int(message.text)
+	except Exception:
+		await message.answer(
+			"Ошибка: некорректный ввод\n\nПожалуйста, введите корректную сумму для вывода, используя только цифры.",
+			reply_markup=inline.create_back_markup("withdraw_phone"),
+		)
+		await state.clear()
+		return
+
+	if user.get("final", False) and user.get("withdraw_card", False):
+		if partner["balance"] < sum_to_withdraw:
+			await message.answer(
+				f"💰️ Баланс: {partner['balance']} RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
+				reply_markup=inline.create_back_markup("withdraw_phone"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		elif sum_to_withdraw > 100000.0:
+			await message.answer(
+				f"Ошибка: сумма превышает лимит\n\nСумма {sum_to_withdraw} превышает максимально допустимую для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам:",
+				reply_markup=inline.create_back_markup("withdraw_phone"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		elif sum_to_withdraw < 5000.0:
+			await message.answer(
+				f"Ошибка: сумма слишком мала\n\nСумма {sum_to_withdraw} меньше минимально допустимой для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам.",
+				reply_markup=inline.create_back_markup("withdraw_phone"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		else:
+			await state.update_data(withdraw_sum=sum_to_withdraw)
+			await message.answer(
+				f"Сумма вывода: {sum_to_withdraw} ₽\n\nУкажите ваш номер телефона",
+				reply_markup=inline.create_back_markup("withdraw_phone"),
+				parse_mode=ParseMode.HTML,
+			)
+			await state.set_state(PhonenumberWithdrawGroup.withdraw_card)
+
+
+@default_router.message(F.text, PhonenumberWithdrawGroup.withdraw_card, message_only_confirmed)
+async def withdraw_withdraw_phone_message(message: Message, state: FSMContext):
+	text = message.text
+
+	await state.update_data(withdraw_card=text)
+	data = await state.get_data()
+	await message.answer(
+		f"Номер телефона принят.\n\nПожалуйста, подтвердите вывод средств. Сумма: {data.get('withdraw_sum')} ₽\n\nНомер телефона: {text}",
+		reply_markup=inline.create_withdraw_continue_markup(withdraw='phone'),
+	)
+	await state.set_state(PhonenumberWithdrawGroup.approved)
+
+
+@default_router.callback_query(
+	F.data == "user_approve_phone_withdraw",
+	PhonenumberWithdrawGroup.approved,
+	message_only_confirmed,
+)
+async def user_approve_phone_withdraw(call: CallbackQuery, state: FSMContext):
+	data = await state.get_data()
+	user = users.get(call.message.chat.id, {})
+	user["withdraw_card"] = False
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"][-1]
+	await state.clear()
+
+	partner_hash = partner.get("partner_hash", "Недоступно")
+
+	result, status = await APIRequest.post(
+		"/transaction/create",
+		data={
+			"partner_hash": partner_hash,
+			"username": str(call.from_user.username),
+			"amount": data["withdraw_sum"],
+			"withdraw_card": data["withdraw_card"],
+			"approved": False,
+			"preview_id": int(f'{datetime.now().strftime("%d%m%H%M%S")}{randint(1000, 9999)}'),
+		},
+	)
+
+	if status != 200:
+		await call.answer(f"ошибка: {status}")
+		return
+
+	transaction_id = result.get("transaction_id", 0)
+
+	transactions = await APIRequest.post(
+		"/transaction/find", {"opts": {"id": transaction_id}}
+	)
+	transac = transactions[0]["transactions"][-1]
+
+	await call.message.edit_text(
+		f"Ваш запрос на вывод средств поставлен в очередь.\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transac["preview_id"]}\n\nВ течение 24 часов бот уведомит вас о статусе вывода. Если за это время вы не получите уведомление, пожалуйста, обратитесь в поддержку.",
+		reply_markup=inline.create_back_markup("profile"),
+	)
+
+	tdata = withdraws_history.get(partner_hash, {})
+	tdata[transac["preview_id"]] = {
+		"status": "⚪️ Вывод на обработке",
+		"type": "📱 Вывод по номеру",
+		"sum": data["withdraw_sum"],
+		"date": datetime.now(),
+	}
+	withdraws_history[partner_hash] = tdata
+
+	transactions_dict[transaction_id] = data
+
+	image = FSInputFile(path=f"{config.SINWIN_DATA}/main/telefon.jpg")
+
+	for admin in config.secrets.ADMINS_IDS:
+		await bot.send_photo(
+			chat_id=admin,
+			photo=image,
+			caption=f"""Tg id: {call.from_user.id}
+Ник: {call.from_user.username}
+Реферал: {partner["is_referal"]}
+Хэш: {partner_hash}
+Id Вывода: {transac["preview_id"]}
+
+Вывод: 📱 Вывод по номеру
+Сумма: <code>{data["withdraw_sum"]}</code>₽
+Номер телефона: <code>{data["withdraw_card"]}</code>""",
+			parse_mode=ParseMode.HTML,
+			reply_markup=inline.create_admin_transaction_menu(transaction_id, admin, 'phone'),
+		)
+
+
+########## FK Wallet
+
+@default_router.callback_query(F.data == "withdraw_fkwallet", message_only_confirmed)
+async def withdraw_fkwallet_callback(call: CallbackQuery, state: FSMContext):
+	await state.clear()
+
+	users[call.message.chat.id] = {
+		"final": True,
+		"withdraw_card": True,
+	}
+
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"][-1]
+
+	if not partner["approved"]:
+		print(partner)
+		users[call.from_user.id] = users.get(call.from_user.id, {})
+		users[call.from_user.id]["final"] = False
+		await call.answer("Вы заблокированы")
+		return
+	
+	message = f"💰️ Баланс: {partner['balance']} RUB\nВывод на FK Wallet\nЛимит одного вывода: от 1 800 ₽ до 100 000 ₽\n\n✍️ Введите сумму которую Вы хотите вывести."
+
+	image = FSInputFile(path=f"{config.SINWIN_DATA}/main/FK.jpg")
+
+	await call.message.edit_media(
+		InputMediaPhoto(media=image, caption=message, parse_mode=ParseMode.HTML),
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.create_back_markup("withdraw"),
+	)
+
+	await state.set_state(FKWalletWithdrawGroup.withdraw_sum)
+
+
+@default_router.message(
+	F.text, FKWalletWithdrawGroup.withdraw_sum, message_only_confirmed
+)
+async def withdraw_fkwallet_message(message: Message, state: FSMContext):
+	user = users.get(message.chat.id, {})
+
+	try:
+		partners = await APIRequest.post(
+			"/partner/find", {"opts": {"tg_id": message.from_user.id}}
+		)
+		partner = partners[0]["partners"][-1]
+	except Exception as ex:
+		await message.answer(
+			f"Произошла ошибка: {ex}",
+			reply_markup=inline.create_back_markup("profile"),
+		)
+		return
+
+	try:
+		sum_to_withdraw = int(message.text)
+	except Exception:
+		await message.answer(
+			"Ошибка: некорректный ввод\n\nПожалуйста, введите корректную сумму для вывода, используя только цифры.",
+			reply_markup=inline.create_back_markup("withdraw_fkwallet"),
+		)
+		await state.clear()
+		return
+
+	if user.get("final", False) and user.get("withdraw_card", False):
+		if partner["balance"] < sum_to_withdraw:
+			await message.answer(
+				f"💰️ Баланс: {partner['balance']} RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
+				reply_markup=inline.create_back_markup("withdraw_fkwallet"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		elif sum_to_withdraw > 100000.0:
+			await message.answer(
+				f"Ошибка: сумма превышает лимит\n\nСумма {sum_to_withdraw} превышает максимально допустимую для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам:",
+				reply_markup=inline.create_back_markup("withdraw_fkwallet"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		elif sum_to_withdraw < 1800.0:
+			await message.answer(
+				f"Ошибка: сумма слишком мала\n\nСумма {sum_to_withdraw} меньше минимально допустимой для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам.",
+				reply_markup=inline.create_back_markup("withdraw_fkwallet"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		else:
+			await state.update_data(withdraw_sum=sum_to_withdraw)
+			await message.answer(
+				f"Сумма вывода: {sum_to_withdraw} ₽\n\nУкажите номер аккаунта в формате F12345678",
+				reply_markup=inline.create_back_markup("withdraw_fkwallet"),
+				parse_mode=ParseMode.HTML,
+			)
+			await state.set_state(FKWalletWithdrawGroup.withdraw_card)
+
+
+@default_router.message(F.text, FKWalletWithdrawGroup.withdraw_card, message_only_confirmed)
+async def withdraw_withdraw_fkwallet_message(message: Message, state: FSMContext):
+	text = message.text
+
+	await state.update_data(withdraw_card=text)
+	data = await state.get_data()
+	await message.answer(
+		f"Номер аккаунта принят.\n\nПожалуйста, подтвердите вывод средств. Сумма: {data.get('withdraw_sum')} ₽\n\nНомер аккаунта: {text}",
+		reply_markup=inline.create_withdraw_continue_markup(withdraw='fkwallet'),
+	)
+	await state.set_state(FKWalletWithdrawGroup.approved)
+
+
+@default_router.callback_query(
+	F.data == "user_approve_fkwallet_withdraw",
+	FKWalletWithdrawGroup.approved,
+	message_only_confirmed,
+)
+async def user_approve_fkwallet_withdraw(call: CallbackQuery, state: FSMContext):
+	data = await state.get_data()
+	user = users.get(call.message.chat.id, {})
+	user["withdraw_card"] = False
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"][-1]
+	await state.clear()
+
+	partner_hash = partner.get("partner_hash", "Недоступно")
+
+	result, status = await APIRequest.post(
+		"/transaction/create",
+		data={
+			"partner_hash": partner_hash,
+			"username": str(call.from_user.username),
+			"amount": data["withdraw_sum"],
+			"withdraw_card": data["withdraw_card"],
+			"approved": False,
+			"preview_id": int(f'{datetime.now().strftime("%d%m%H%M%S")}{randint(1000, 9999)}'),
+		},
+	)
+
+	if status != 200:
+		await call.answer(f"ошибка: {status}")
+		return
+
+	transaction_id = result.get("transaction_id", 0)
+
+	transactions = await APIRequest.post(
+		"/transaction/find", {"opts": {"id": transaction_id}}
+	)
+	transac = transactions[0]["transactions"][-1]
+
+	await call.message.edit_text(
+		f"Ваш запрос на вывод средств поставлен в очередь.\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transac["preview_id"]}\n\nВ течение 24 часов бот уведомит вас о статусе вывода. Если за это время вы не получите уведомление, пожалуйста, обратитесь в поддержку.",
+		reply_markup=inline.create_back_markup("profile"),
+	)
+
+	tdata = withdraws_history.get(partner_hash, {})
+	tdata[transac["preview_id"]] = {
+		"status": "⚪️ Вывод на обработке",
+		"type": "👾 FK Wallet",
+		"sum": data["withdraw_sum"],
+		"date": datetime.now(),
+	}
+	withdraws_history[partner_hash] = tdata
+
+	transactions_dict[transaction_id] = data
+
+	image = FSInputFile(path=f"{config.SINWIN_DATA}/main/FK.jpg")
+
+	for admin in config.secrets.ADMINS_IDS:
+		await bot.send_photo(
+			chat_id=admin,
+			photo=image,
+			caption=f"""Tg id: {call.from_user.id}
+Ник: {call.from_user.username}
+Реферал: {partner["is_referal"]}
+Хэш: {partner_hash}
+Id Вывода: {transac["preview_id"]}
+
+Вывод: 👾 FK Wallet
+Сумма: <code>{data["withdraw_sum"]}</code>₽
+Номер аккаунта: <code>{data["withdraw_card"]}</code>""",
+			parse_mode=ParseMode.HTML,
+			reply_markup=inline.create_admin_transaction_menu(transaction_id, admin, 'fkwallet'),
+		)
+
+
+
+########## 🌸 Piastrix
+
+@default_router.callback_query(F.data == "withdraw_piastrix", message_only_confirmed)
+async def withdraw_piastrix_callback(call: CallbackQuery, state: FSMContext):
+	await state.clear()
+
+	users[call.message.chat.id] = {
+		"final": True,
+		"withdraw_card": True,
+	}
+
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"][-1]
+
+	if not partner["approved"]:
+		print(partner)
+		users[call.from_user.id] = users.get(call.from_user.id, {})
+		users[call.from_user.id]["final"] = False
+		await call.answer("Вы заблокированы")
+		return
+	
+	message = f"💰️ Баланс: {partner['balance']} RUB\nВывод на Piastrix\nЛимит одного вывода: от 1 800 ₽ до 100 000 ₽\n\n✍️ Введите сумму которую Вы хотите вывести."
+
+	image = FSInputFile(path=f"{config.SINWIN_DATA}/main/piastrix.jpg")
+
+	await call.message.edit_media(
+		InputMediaPhoto(media=image, caption=message, parse_mode=ParseMode.HTML),
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.create_back_markup("withdraw"),
+	)
+
+	await state.set_state(PiastrixWithdrawGroup.withdraw_sum)
+
+
+@default_router.message(
+	F.text, PiastrixWithdrawGroup.withdraw_sum, message_only_confirmed
+)
+async def withdraw_piastrix_message(message: Message, state: FSMContext):
+	user = users.get(message.chat.id, {})
+
+	try:
+		partners = await APIRequest.post(
+			"/partner/find", {"opts": {"tg_id": message.from_user.id}}
+		)
+		partner = partners[0]["partners"][-1]
+	except Exception as ex:
+		await message.answer(
+			f"Произошла ошибка: {ex}",
+			reply_markup=inline.create_back_markup("profile"),
+		)
+		return
+
+	try:
+		sum_to_withdraw = int(message.text)
+	except Exception:
+		await message.answer(
+			"Ошибка: некорректный ввод\n\nПожалуйста, введите корректную сумму для вывода, используя только цифры.",
+			reply_markup=inline.create_back_markup("withdraw_piastrix"),
+		)
+		await state.clear()
+		return
+
+	if user.get("final", False) and user.get("withdraw_card", False):
+		if partner["balance"] < sum_to_withdraw:
+			await message.answer(
+				f"💰️ Баланс: {partner['balance']} RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
+				reply_markup=inline.create_back_markup("withdraw_piastrix"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		elif sum_to_withdraw > 100000.0:
+			await message.answer(
+				f"Ошибка: сумма превышает лимит\n\nСумма {sum_to_withdraw} превышает максимально допустимую для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам:",
+				reply_markup=inline.create_back_markup("withdraw_piastrix"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		elif sum_to_withdraw < 1800.0:
+			await message.answer(
+				f"Ошибка: сумма слишком мала\n\nСумма {sum_to_withdraw} меньше минимально допустимой для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам.",
+				reply_markup=inline.create_back_markup("withdraw_piastrix"),
+			)
+			await state.clear()
+			user["withdraw_card"] = False
+		else:
+			await state.update_data(withdraw_sum=sum_to_withdraw)
+			await message.answer(
+				f"Сумма вывода: {sum_to_withdraw} ₽\n\nУкажите номер кошелька или email Piastrix",
+				reply_markup=inline.create_back_markup("withdraw_piastrix"),
+				parse_mode=ParseMode.HTML,
+			)
+			await state.set_state(PiastrixWithdrawGroup.withdraw_card)
+
+
+@default_router.message(F.text, PiastrixWithdrawGroup.withdraw_card, message_only_confirmed)
+async def withdraw_withdraw_piastrix_message(message: Message, state: FSMContext):
+	text = message.text
+
+	await state.update_data(withdraw_card=text)
+	data = await state.get_data()
+	await message.answer(
+		f"Номер аккаунта принят.\n\nПожалуйста, подтвердите вывод средств. Сумма: {data.get('withdraw_sum')} ₽\n\nНомер кошелька/email: {text}",
+		reply_markup=inline.create_withdraw_continue_markup(withdraw='piastrix'),
+	)
+	await state.set_state(PiastrixWithdrawGroup.approved)
+
+
+@default_router.callback_query(
+	F.data == "user_approve_piastrix_withdraw",
+	PiastrixWithdrawGroup.approved,
+	message_only_confirmed,
+)
+async def user_approve_piastrix_withdraw(call: CallbackQuery, state: FSMContext):
+	data = await state.get_data()
+	user = users.get(call.message.chat.id, {})
+	user["withdraw_card"] = False
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"][-1]
+	await state.clear()
+
+	partner_hash = partner.get("partner_hash", "Недоступно")
+
+	result, status = await APIRequest.post(
+		"/transaction/create",
+		data={
+			"partner_hash": partner_hash,
+			"username": str(call.from_user.username),
+			"amount": data["withdraw_sum"],
+			"withdraw_card": data["withdraw_card"],
+			"approved": False,
+			"preview_id": int(f'{datetime.now().strftime("%d%m%H%M%S")}{randint(1000, 9999)}'),
+		},
+	)
+
+	if status != 200:
+		await call.answer(f"ошибка: {status}")
+		return
+
+	transaction_id = result.get("transaction_id", 0)
+
+	transactions = await APIRequest.post(
+		"/transaction/find", {"opts": {"id": transaction_id}}
+	)
+	transac = transactions[0]["transactions"][-1]
+
+	await call.message.edit_text(
+		f"Ваш запрос на вывод средств поставлен в очередь.\n🛡 Ваш хэш: {partner_hash}\n🆔 ID Вывода: {transac["preview_id"]}\n\nВ течение 24 часов бот уведомит вас о статусе вывода. Если за это время вы не получите уведомление, пожалуйста, обратитесь в поддержку.",
+		reply_markup=inline.create_back_markup("profile"),
+	)
+
+	tdata = withdraws_history.get(partner_hash, {})
+	tdata[transac["preview_id"]] = {
+		"status": "⚪️ Вывод на обработке",
+		"type": "🌸 Piastrix",
+		"sum": data["withdraw_sum"],
+		"date": datetime.now(),
+	}
+	withdraws_history[partner_hash] = tdata
+
+	transactions_dict[transaction_id] = data
+
+	image = FSInputFile(path=f"{config.SINWIN_DATA}/main/piastrix.jpg")
+
+	for admin in config.secrets.ADMINS_IDS:
+		await bot.send_photo(
+			chat_id=admin,
+			photo=image,
+			caption=f"""Tg id: {call.from_user.id}
+Ник: {call.from_user.username}
+Реферал: {partner["is_referal"]}
+Хэш: {partner_hash}
+Id Вывода: {transac["preview_id"]}
+
+Вывод: 🌸 Piastrix
+Сумма: <code>{data["withdraw_sum"]}</code>₽
+Номер аккаунта: <code>{data["withdraw_card"]}</code>""",
+			parse_mode=ParseMode.HTML,
+			reply_markup=inline.create_admin_transaction_menu(transaction_id, admin, 'piastrix'),
+		)
+
+
+############################################
+############## DEFAULT ROUTER ##############
+###########################################
 
 
 @default_router.message(F.text)
@@ -2679,29 +3717,3 @@ async def text_handler(message: Message):
 				parse_mode=ParseMode.HTML,
 				reply_markup=inline.create_start_markup(),
 			)
-
-
-@default_router.callback_query(F.data == "withdraw_steam", message_only_confirmed)
-async def withdraw_steam_callback(call: CallbackQuery, state: FSMContext):
-	message = "💰️ Баланс: 0 RUB\nВывод на аккаунт Steam\nЛимит одного вывода: от 2 000 ₽ до 12 000 ₽\n\n✍️ Введите сумму которую Вы хотите вывести."
-
-	await call.message.edit_text(
-		message,
-		parse_mode=ParseMode.HTML,
-		reply_markup=inline.create_back_markup("withdraw"),
-	)
-
-	await state.set_state(SteamWidthDrawGroup.withdraw_sum)
-
-
-@default_router.message(
-	F.text, SteamWidthDrawGroup.withdraw_sum, message_only_confirmed
-)
-async def withdraw_steam_message(message: Message, state: FSMContext):
-	await message.edit_text(
-		"💰️ Баланс: 0 RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
-		reply_markup=inline.create_back_markup("withdraw"),
-	)
-
-	await state.clear()
->>>>>>> Tabnine >>>>>>># {"source":"chat"}
