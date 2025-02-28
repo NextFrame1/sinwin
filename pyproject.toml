@@ -19,6 +19,7 @@ aiocache = "^0.12.3"
 redis = "^5.2.1"
 apscheduler = "^3.11.0"
 python-dateutil = "^2.9.0.post0"
+aioredis = "^2.0.1"
 
 [format]
 # Like Black, use double quotes for strings.

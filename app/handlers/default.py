@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from random import randint
-from typing import Dict, Any
+from typing import Dict, Any, List
 from aiogram import F, Router
 from aiogram.enums import ParseMode
 from aiogram.fsm.context import FSMContext
@@ -12,7 +12,7 @@ from dateutil.relativedelta import relativedelta
 import app.keyboards.menu_inline as inline
 from app.api import APIRequest
 from app.database.test import users
-from app.loader import bot, config, scheduler
+from app.loader import bot, config, scheduler, loaded_achievements, ACHIEVEMENTS, convert_to_human, user_achievements
 from app.utils.algorithms import is_valid_card
 
 only_confirmed = (
@@ -31,17 +31,18 @@ transactions_dict = {}
 transactions_schedulded = {}
 withdraws_history = {}
 
-ACHIEVEMENTS = {
-	"users": [100, 250, 500, 750, 1000, 2500, 5000, 10000, 15000, 20000, 25000, 30000, 40000, 50000, 75000, 100000, 150000, 200000, 250000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 5000000],
-	"deposits": [10000, 25000, 50000, 100000, 250000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000, 12500000, 15000000, 20000000, 25000000, 50000000, 100000000, 150000000, 200000000, 250000000, 500000000, 750000000, 1000000000, 1500000000, 2000000000, 2500000000, 5000000000],
-	"income": [5000, 10000, 25000, 50000, 100000, 250000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000, 12500000, 15000000, 20000000, 25000000, 50000000, 100000000, 150000000, 200000000, 250000000, 500000000, 750000000, 1000000000, 1500000000, 2000000000, 2500000000, 5000000000],
-	"first_deposits": [25, 50, 75, 100, 150, 200, 250, 500, 750, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000, 12500000, 15000000, 20000000, 25000000, 50000000, 100000000, 150000000, 200000000, 250000000, 500000000, 750000000, 1000000000, 1500000000, 2000000000, 2500000000, 5000000000],
-	"referrals": [1, 2, 3, 5, 7, 10, 15, 20, 25, 35, 50, 75, 100, 150, 200, 250, 500, 750, 1000, 1500, 2000, 2500, 5000, 10000, 25000],
-	"api": [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000, 12500000, 15000000, 20000000, 25000000, 50000000, 100000000, 150000000, 200000000, 250000000, 500000000, 750000000, 1000000000, 1500000000, 2000000000, 2500000000, 5000000000],
-	"signals": [100, 250, 500, 750, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000, 12500000, 15000000, 20000000, 25000000, 50000000, 100000000, 150000000, 200000000, 250000000, 500000000, 750000000, 1000000000, 1500000000, 2000000000, 2500000000, 5000000000]
+
+
+LIMITS = {
+	'bitcoin': (10650.0, 665000.0),
+	'ethereum': (1000.0, 665000.0),
+	'tether erc20': (1500.0, 5000000.0),
+	'tether trc20': (1500.0, 5000000.0),
+	'tether bep20': (1500.0, 5000000.0),
 }
 
-user_achievements: Dict[int, Any] = {}
+last_update_time: Dict[int, datetime] = {}
+
 
 class CardWithdrawGroup(StatesGroup):
 	withdraw_sum = State()
@@ -64,6 +65,7 @@ class PhonenumberWithdrawGroup(StatesGroup):
 class CryptoWithdrawGroup(StatesGroup):
 	withdraw_sum = State()
 	withdraw_card = State()
+	address = State()
 	limit = State()
 	approved = State()
 
@@ -82,6 +84,7 @@ class PiastrixWithdrawGroup(StatesGroup):
 
 class PromoGroup(StatesGroup):
 	promocode = State()
+
 
 class CancelTransaction(StatesGroup):
 	transac = State()
@@ -209,7 +212,7 @@ async def statistics_callback(call: CallbackQuery):
 		]
 		signals_gens = sum(sum(x) for x in signals_gens)
 
-		api_count = len([apinum for partnerhash, apinum in result["api_count"].items()])
+		api_count = sum([apinum for partnerhash, apinum in result["api_count"].items()])
 
 		messages = [
 			"<b>СТАТИСТИКА ПО ВСЕМ БОТАМ</b>\n",
@@ -256,13 +259,15 @@ async def statistics_callback(call: CallbackQuery):
 
 		data = await collect_stats(opts)
 
-		api_count = len(
-			[
-				apinum
-				for partnerhash, apinum in result["api_count"].items()
-				if partnerhash == partner["partner_hash"]
-			]
-		)
+		# api_count = len(
+		# 	[
+		# 		apinum
+		# 		for partnerhash, apinum in result["api_count"].items()
+		# 		if partnerhash == partner["partner_hash"]
+		# 	]
+		# )
+
+		api_count = result["api_count"].get(partner["partner_hash"], 0)
 
 		today_deps = sum(
 			[
@@ -413,7 +418,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 	if call.from_user.id in config.secrets.ADMINS_IDS:
 		data = await collect_stats({"game": "Mines"})
 
-		api_count = len([apinum for partnerhash, apinum in result["api_count"].items()])
+		api_count = sum([apinum for partnerhash, apinum in result["api_count"].items()])
 
 		today_deps = sum(
 			[dep["amount"] for dep in stats["today"]["dep"] if dep["game"] == "Mines"]
@@ -564,13 +569,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 
 		data = await collect_stats(opts)
 
-		api_count = len(
-			[
-				apinum
-				for partnerhash, apinum in result["api_count"].items()
-				if partnerhash == partner["partner_hash"]
-			]
-		)
+		api_count = result["api_count"].get(partner["partner_hash"], 0)
 
 		today_deps = sum(
 			[
@@ -827,11 +826,11 @@ def check_achievements(users_count, income, deposits_sum, first_deposits_count):
 
 	for threshold in ACHIEVEMENTS["deposits"]:
 		if deposits_sum >= threshold:
-			thresholds['deposits_sum'].append(str(threshold))
+			thresholds['deposits_sum'].append(convert_to_human(threshold))
 	
 	for threshold in ACHIEVEMENTS["income"]:
 		if income >= threshold:
-			thresholds['income'].append(str(threshold))
+			thresholds['income'].append(convert_to_human(threshold))
 
 	for threshold in ACHIEVEMENTS["first_deposits"]:
 		if first_deposits_count >= threshold:
@@ -847,13 +846,149 @@ def check_achievements(users_count, income, deposits_sum, first_deposits_count):
 	return achievements
 
 
+def check_achievements_for_reload(users_count, income, deposits_sum, first_deposits_count, referrals_count, signals_count):
+	thresholds = {
+		'users_count': [str(users_count)],
+		'deposits_sum': [str(deposits_sum)],
+		'income': [str(income)],
+		'first_deposits_count': [str(first_deposits_count)],
+		'referrals_count': [str(referrals_count)],
+		'signals_count': [str(signals_count)],
+	}
+
+	for threshold in ACHIEVEMENTS["users"]:
+		if users_count >= threshold:
+			thresholds['users_count'].append(str(threshold))
+
+	for threshold in ACHIEVEMENTS["deposits"]:
+		if deposits_sum >= threshold:
+			thresholds['deposits_sum'].append(convert_to_human(threshold))
+	
+	for threshold in ACHIEVEMENTS["income"]:
+		if income >= threshold:
+			thresholds['income'].append(convert_to_human(threshold))
+
+	for threshold in ACHIEVEMENTS["first_deposits"]:
+		if first_deposits_count >= threshold:
+			thresholds['first_deposits_count'].append(str(threshold))
+
+	for threshold in ACHIEVEMENTS["referrals"]:
+		if referrals_count<= threshold:
+			thresholds['referrals_count'].append(str(threshold))
+			break
+
+	for threshold in ACHIEVEMENTS["signals"]:
+		if signals_count < threshold:
+			thresholds['signals_count'].append(str(threshold))
+			break
+	
+	count = len(thresholds["users_count"]) + len(thresholds["signals_count"]) + len(thresholds["deposits_sum"]) + len(thresholds["income"]) + len(thresholds["first_deposits_count"]) + len(thresholds["referrals_count"]) - 6
+
+	return {
+		'count': count,
+		'thresholds': thresholds,
+	}
+
+
 @default_router.callback_query(F.data.startswith("reload_achievs"), only_confirmed)
 async def reload_achievs_callback(call: CallbackQuery):
-	global user_achievements
-	data = user_achievements[call.from_user.id]
-	data['achievements'] = []
-	user_achievements[call.from_user.id] = data
-	await call.answer("Обновили список достижений", show_alert=True)
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"]
+
+	if last_update_time.get(call.from_user.id) is not None:
+		time_difference = datetime.now() - last_update_time.get(call.from_user.id)
+
+		if time_difference.total_seconds() < 60:
+			await call.answer("Слишком часто, обновите через минуту")
+			return
+	
+	last_update_time[call.from_user.id] = datetime.now()
+	
+	if partner:
+		partner = partner[-1]
+	else:
+		await call.answer("Вы еще не зарегистрированы в системе")
+
+	if not partner["approved"]:
+		print(partner)
+		users[call.from_user.id] = users.get(call.from_user.id, {})
+		users[call.from_user.id]["final"] = False
+		await call.answer("Вы заблокированы")
+		return
+
+	result, code = await APIRequest.get(f"/base/achstats?partnerhash={partner["partner_hash"]}")
+
+	cpartners = await APIRequest.post(
+		"/partner/find", {"opts": {"referrer_hash": partner["partner_hash"]}}
+	)
+	cpartners = cpartners[0]["partners"]
+
+	opts = {"game": "Mines", "referal_parent": partner["partner_hash"]}
+	data = await collect_stats(opts)
+
+	achievements = check_achievements_for_reload(data['users_count'], result['income'], result['deposits_sum'], result['first_deposits_count'], len(cpartners), result['signals_count'])
+
+	count = achievements['count']
+	thresholds = achievements['thresholds']
+
+	# thresholds_data = {
+	# 	'users_count': ['0'],
+	# 	'deposits_sum': ['0'],
+	# 	'income': ['0'],
+	# 	'first_deposits_count': ['0'],
+	# }
+
+	loaded_achievs = loaded_achievements.get(call.from_user.id, {})
+
+	loaded_achievements[call.from_user.id] = achievements
+
+	loaded_count = loaded_achievs.get('count')
+
+	if loaded_count > count:
+		loaded_thresholds = loaded_achievs['thresholds']
+
+		users_count = list(set(loaded_thresholds['users_count']) - set(thresholds['users_count']))
+		deposits_sum = list(set(loaded_thresholds['deposits_sum']) - set(thresholds['deposits_sum']))
+		income = list(set(loaded_thresholds['income']) - set(thresholds['income']))
+		first_deposits_count = list(set(loaded_thresholds['first_deposits_count']) - set(thresholds['first_deposits_count']))
+		referrals_count = list(set(loaded_thresholds['referrals_count']) - set(thresholds['referrals_count']))
+		signals_count = list(set(loaded_thresholds['signals_count']) - set(thresholds['signals_count']))
+
+		if users_count:
+			for data in users_count:
+				await call.message.answer(f'Достижение успешно выполнено.\n\n✅ Пользователи по вашим ссылкам: больше {data}.')
+
+		if deposits_sum:
+			for data in deposits_sum:
+				await call.message.answer(f'Достижение успешно выполнено.\n\n✅ Депозиты: больше {convert_to_human(data)} рублей.')
+
+		if income:
+			for data in income:
+				await call.message.answer(f'Достижение успешно выполнено.\n\n✅ Доход: больше {convert_to_human(data)} рублей.')
+		
+		if first_deposits_count:
+			for data in first_deposits_count:
+				await call.message.answer(f'Достижение успешно выполнено.\n\n✅ Количество первых депозитов: больше {data}.')
+		
+		if referrals_count:
+			for data in referrals_count:
+				await call.message.answer(f'Достижение успешно выполнено.\n\n✅ Количество рефералов: больше {data}.')
+
+		if signals_count:
+			for data in signals_count:
+				await call.message.answer(f'Достижение успешно выполнено.\n\n✅ Сгенерировано сигналов: больше {data}.')
+
+		achievements = check_achievements_var2(data['users_count'], result['income'], result['deposits_sum'], result['first_deposits_count'],
+										len(cpartners), result['signals_count'])
+
+		data = user_achievements.get(call.from_user.id, {})
+		data['achievements'] = achievements
+		user_achievements[call.from_user.id] = data
+	else:
+		await call.answer('Вы не выполнили ни одного достижения')
+	# await call.answer("Обновили список достижений", show_alert=True)
 
 
 @default_router.callback_query(F.data.startswith("my_achievs"), only_confirmed)
@@ -913,12 +1048,12 @@ def check_achievements_var2(users_count, income, deposits_sum, first_deposits_co
 
 	for threshold in ACHIEVEMENTS["deposits"]:
 		if deposits_sum < threshold:
-			achievements.append(f"❌ Депозиты: {threshold} рублей")
+			achievements.append(f"❌ Депозиты: {convert_to_human(threshold)} рублей")
 			break
 	
 	for threshold in ACHIEVEMENTS["income"]:
 		if income < threshold:
-			achievements.append(f"❌ Доход: {threshold} рублей")
+			achievements.append(f"❌ Доход: {convert_to_human(threshold)} рублей")
 			break
 
 	for threshold in ACHIEVEMENTS["first_deposits"]:
@@ -984,10 +1119,10 @@ async def achievements_callback(call: CallbackQuery):
 		opts = {"game": "Mines", "referal_parent": partner["partner_hash"]}
 		data = await collect_stats(opts)
 
-		print(result)
-
 		achievements = check_achievements_var2(data['users_count'], result['income'], result['deposits_sum'], result['first_deposits_count'],
 										len(cpartners), result['signals_count'])
+		
+		loaded_achievements[call.from_user.id] = check_achievements_for_reload(data['users_count'], result['income'], result['deposits_sum'], result['first_deposits_count'], len(cpartners), result['signals_count'])
 
 		messages += achievements
 
@@ -1228,38 +1363,6 @@ async def withdraws_history_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(F.data == "status_levels", only_confirmed)
-async def status_levels_callback(call: CallbackQuery):
-	# ❌✅🏆️📊🎯💼💰️
-	messages = [
-		"1. Новичок: 35 %\nУсловия для перехода:",
-		"❌ Доход за последний месяц: не менее 50 000 рублей",
-		"❌ Общий доход за все время: не менее 100 000 рублей",
-		"❌ Первые депозиты за последний месяц: не менее 100\n",
-		"2. Специалист 40 %",
-		"❌ Доход за последний месяц: не менее 150 000 рублей",
-		"❌ Общий доход за все время: не менее 300 000 рублей",
-		"❌ Первые депозиты за последний месяц: не менее 200\n",
-		"3. Профессионал 45 %",
-		"❌ Доход за последний месяц: не менее 300 000 рублей",
-		"❌ Общий доход за все время: не менее 600 000 рублей",
-		"✅ Первые депозиты за последний месяц: не менее 400\n",
-		"4. Мастер 50%",
-		"❌ Доход за последний месяц: не менее 500 000 рублей",
-		"❌ Общий доход за все время: не менее 1 000 000 рублей",
-		"❌ Первые депозиты за последний месяц: не менее 600\n",
-		"5. Легенда Суб Партнерство\n",
-		'Суб партнерство подключается вручную. Пользователь регистрируется в официальной партнерской программе 1 Win через нашу ссылку. Создает свою уникальную ссылку для приглашения, которую мы интегрируем в нашего бота. Пользователь получает от 50% до 60% прибыли через официальную партнерскую программу. Иногда статус "Легенда" подключается вместо статуса "Мастер".\n',
-		"<code>Условия перехода могут изменяться</code>",
-	]
-
-	await call.message.edit_text(
-		"\n".join(messages),
-		parse_mode=ParseMode.HTML,
-		reply_markup=inline.create_back_markup("status"),
-	)
-
-
 @default_router.callback_query(F.data == "statistics_online", only_confirmed)
 async def statistics_online_callback(call: CallbackQuery):
 	# ✨📊💰️🎮️
@@ -1356,6 +1459,195 @@ def get_next_level(status):
 		return "легенда"
 
 
+@default_router.callback_query(F.data == "status_levels", only_confirmed)
+async def status_levels_callback(call: CallbackQuery):
+	if call.from_user.id in config.secrets.ADMINS_IDS:
+		await call.answer("Для просмотра условий перехода обратитесь к админпанели")
+		return
+
+	result, code = await APIRequest.get("/base/stats")
+
+	stats = result["data"]
+	
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": call.from_user.id}}
+	)
+	partner = partners[0]["partners"]
+
+	if partner:
+		partner = partner[-1]
+	else:
+		await call.answer("Доступ запрещен")
+		return
+
+	opts = {"referal_parent": partner["partner_hash"]}
+
+	data = await collect_stats(opts)
+
+	api_count = len(
+		[
+			apinum
+			for partnerhash, apinum in result["api_count"].items()
+			if partnerhash == partner["partner_hash"]
+		]
+	)
+
+	today_deps = sum(
+		[
+			dep["amount"]
+			for dep in stats["today"]["dep"]
+			if dep["partner_hash"] == partner["partner_hash"]
+		]
+	)
+	yesterday_deps = sum(
+		[
+			dep["amount"]
+			for dep in stats["yesterday"]["dep"]
+			if dep["partner_hash"] == partner["partner_hash"]
+		]
+	)
+	last_week_deps = sum(
+		[
+			dep["amount"]
+			for dep in stats["last_week"]["dep"]
+			if dep["partner_hash"] == partner["partner_hash"]
+		]
+	)
+	last_month_deps = sum(
+		[
+			dep["amount"]
+			for dep in stats["last_month"]["dep"]
+			if dep["partner_hash"] == partner["partner_hash"]
+		]
+	)
+
+	today_firstdeps = len(
+		[
+			dep["amount"]
+			for dep in stats["today"]["firstdep"]
+			if dep["partner_hash"] == partner["partner_hash"]
+		]
+	)
+	yesterday_firstdeps = len(
+		[
+			dep["amount"]
+			for dep in stats["yesterday"]["firstdep"]
+			if dep["partner_hash"] == partner["partner_hash"]
+		]
+	)
+	last_week_firstdeps = len(
+		[
+			dep["amount"]
+			for dep in stats["last_week"]["firstdep"]
+			if dep["partner_hash"] == partner["partner_hash"]
+		]
+	)
+	last_month_firstdeps = len(
+		[
+			dep["amount"]
+			for dep in stats["last_month"]["firstdep"]
+			if dep["partner_hash"] == partner["partner_hash"]
+		]
+	)
+
+	today_income = sum(
+		[
+			dep["x"]
+			for dep in stats["today"]["income"]
+			if dep["partner_hash"] == partner["partner_hash"]
+		]
+	)
+	yesterday_income = sum(
+		[
+			dep["x"]
+			for dep in stats["yesterday"]["income"]
+			if dep["partner_hash"] == partner["partner_hash"]
+		]
+	)
+	last_week_income = sum(
+		[
+			dep["x"]
+			for dep in stats["last_week"]["income"]
+			if dep["partner_hash"] == partner["partner_hash"]
+		]
+	)
+	last_month_income =sum(
+		[
+			dep["x"]
+			for dep in stats["last_month"]["income"]
+			if dep["partner_hash"] == partner["partner_hash"]
+		]
+	)
+	other_dates_income = [info for name, info in stats.items() if name == "income"]
+	others_income = sum(
+		[
+			dep["x"]
+			for dep in other_dates_income
+			if dep["partner_hash"] == partner["partner_hash"]
+		]
+	)
+
+	alltime_firstdeps= (
+		today_firstdeps
+		+ yesterday_firstdeps
+		+ last_week_firstdeps
+		+ last_month_firstdeps
+	)
+	alltime_income = (
+		today_income
+		+ yesterday_income
+		+ last_week_income
+		+ last_month_income
+		+ others_income
+	)
+
+	last_month_income = today_income + yesterday_income + last_week_income + last_month_income
+
+	statuses1, _ = get_status_conditions(
+		"новичок", last_month_income, alltime_income, alltime_firstdeps
+	)
+
+	statuses2, _ = get_status_conditions(
+		"специалист", last_month_income, alltime_income, alltime_firstdeps
+	)
+
+	statuses3, _ = get_status_conditions(
+		"профессионал", last_month_income, alltime_income, alltime_firstdeps
+	)
+
+	statuses4, _ = get_status_conditions(
+		"мастер", last_month_income, alltime_income, alltime_firstdeps
+	)
+
+	messages = [
+		"1. Новичок: 35 %\nУсловия для перехода:",
+		f"{statuses1['income']} Доход за последний месяц: не менее 50 000 рублей",
+		f"{statuses1['total_income']} Общий доход за все время: не менее 100 000 рублей",
+		f"{statuses1['first_deposits']} Первые депозиты за последний месяц: не менее 100\n",
+		"2. Специалист 40 %",
+		f"{statuses2['income']} Доход за последний месяц: не менее 150 000 рублей",
+		f"{statuses2['total_income']} Общий доход за все время: не менее 300 000 рублей",
+		f"{statuses2['first_deposits']} Первые депозиты за последний месяц: не менее 200\n",
+		"3. Профессионал 45 %",
+		f"{statuses3['income']} Доход за последний месяц: не менее 300 000 рублей",
+		f"{statuses3['total_income']} Общий доход за все время: не менее 600 000 рублей",
+		f"{statuses3['first_deposits']} Первые депозиты за последний месяц: не менее 400\n",
+		"4. Мастер 50%",
+		f"{statuses4['income']} Доход за последний месяц: не менее 500 000 рублей",
+		f"{statuses4['total_income']} Общий доход за все время: не менее 1 000 000 рублей",
+		f"{statuses4['first_deposits']} Первые депозиты за последний месяц: не менее 600\n",
+		"5. Легенда Суб Партнерство\n",
+		'Суб партнерство подключается вручную. Пользователь регистрируется в официальной партнерской программе 1 Win через нашу ссылку. Создает свою уникальную ссылку для приглашения, которую мы интегрируем в нашего бота. Пользователь получает от 50% до 60% прибыли через официальную партнерскую программу. Иногда статус "Легенда" подключается вместо статуса "Мастер".\n',
+		"<code>Условия перехода могут изменяться</code>",
+	]
+
+	await call.message.edit_text(
+		"\n".join(messages),
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.create_back_markup("status"),
+	)
+
+
 @default_router.callback_query(F.data == "status", only_confirmed)
 async def status_callback(call: CallbackQuery):
 	# ❌✅🏆️📊🎯💼💰️
@@ -1384,13 +1676,9 @@ async def status_callback(call: CallbackQuery):
 
 		data = await collect_stats(opts)
 
-		api_count = len(
-			[
-				apinum
-				for partnerhash, apinum in result["api_count"].items()
-				if partnerhash == partner["partner_hash"]
-			]
-		)
+		api_count = result["api_count"].get(partner["partner_hash"], 0)
+
+		#api_count = result["api_count"].get(partner["partner_hash"])
 
 		today_deps = sum(
 			[
@@ -1421,21 +1709,21 @@ async def status_callback(call: CallbackQuery):
 			]
 		)
 
-		today_firstdeps = sum(
+		today_firstdeps = len(
 			[
 				dep["amount"]
 				for dep in stats["today"]["firstdep"]
 				if dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		yesterday_firstdeps = sum(
+		yesterday_firstdeps = len(
 			[
 				dep["amount"]
 				for dep in stats["yesterday"]["firstdep"]
 				if dep["partner_hash"] == partner["partner_hash"]
 			]
 		)
-		last_week_firstdeps = sum(
+		last_week_firstdeps = len(
 			[
 				dep["amount"]
 				for dep in stats["last_week"]["firstdep"]
@@ -1506,20 +1794,48 @@ async def status_callback(call: CallbackQuery):
 			[info[partner["partner_hash"]] for _, info in result["signals"].items()]
 		)
 
+		last_month_income_str = "{:,}".format(last_month_income).replace(',', ' ')
+		alltime_income_str = "{:,}".format(alltime_income).replace(',', ' ')
+
+		last_month_income = today_income + yesterday_income + last_week_income + last_month_income
+
 		statuses, may_up = get_status_conditions(
-			partner["status"], last_month_income, alltime_income, last_month_firstdeps
+			partner["status"], last_month_income, alltime_income, alltime_firstdeps
 		)
+
+		statuses_conditions = {
+			'новичок': {
+				'last_month_income': convert_to_human(50000),
+				'alltime_income': convert_to_human(100000),
+				'alltime_firstdeps': convert_to_human(100),
+			},
+			'специалист': {
+				'last_month_income': convert_to_human(150000),
+				'alltime_income': convert_to_human(300000),
+				'alltime_firstdeps': convert_to_human(200),
+			},
+			'профессионал': {
+				'last_month_income': convert_to_human(300000),
+				'alltime_income': convert_to_human(600000),
+				'alltime_firstdeps': convert_to_human(400),
+			},
+			'мастер': {
+				'last_month_income': convert_to_human(500000),
+				'alltime_income': convert_to_human(1000000),
+				'alltime_firstdeps': convert_to_human(600),
+			}
+		}
 
 		messages = [
 			f"🏆️ Ваш текущий статус: {partner['status']}",
 			f"🎯 Вы получаете: {get_percent_by_status(partner['status'])}%\n",
-			f"📊 Ваш доход за последний месяц: {last_month_income} RUB",
-			f"💼 Общий доход: {alltime_income} RUB",
+			f"📊 Ваш доход за последний месяц: {last_month_income_str} RUB",
+			f"💼 Общий доход: {alltime_income_str} RUB",
 			f"💰️ Первые депозиты за последний месяц: {last_month_firstdeps}\n",
 			"Условия для перехода:",
-			f"{statuses['income']} Доход за последний месяц: не менее 50 000 рублей",
-			f"{statuses['total_income']} Общий доход за все время: не менее 100 000 рублей",
-			f"{statuses['first_deposits']} Первые депозиты за последний месяц: не менее 100\n",
+			f"{statuses['income']} Доход за последний месяц: не менее {statuses_conditions[partner['status']]['last_month_income']} рублей",
+			f"{statuses['total_income']} Общий доход за все время: не менее {statuses_conditions[partner['status']]['alltime_income']} рублей",
+			f"{statuses['first_deposits']} Первые депозиты за последний месяц: не менее {statuses_conditions[partner['status']]['alltime_firstdeps']}\n",
 			"Продолжайте в том же духе! Чем дольше и лучше вы работаете, тем больше вы зарабатывайте! Переход на новый уровень происходит автоматически каждые 24 часа, если все условия выполнены.",
 			"\n<code>Обратите внимание: условия перехода могут меняться.</code>\n",
 			"Если у вас есть вопросы, напишите в поддержку",
@@ -1851,21 +2167,21 @@ async def change_status_moving_callback(call: CallbackQuery):
 		]
 	)
 
-	today_firstdeps = sum(
+	today_firstdeps = len(
 		[
 			dep["amount"]
 			for dep in stats["today"]["firstdep"]
 			if dep["partner_hash"] == partner["partner_hash"]
 		]
 	)
-	yesterday_firstdeps = sum(
+	yesterday_firstdeps = len(
 		[
 			dep["amount"]
 			for dep in stats["yesterday"]["firstdep"]
 			if dep["partner_hash"] == partner["partner_hash"]
 		]
 	)
-	last_week_firstdeps = sum(
+	last_week_firstdeps = len(
 		[
 			dep["amount"]
 			for dep in stats["last_week"]["firstdep"]
@@ -2187,16 +2503,7 @@ async def withdraw_crypto_callback(call: CallbackQuery, state: FSMContext):
 @default_router.callback_query(F.data.startswith("crypto_set_withdraw_"), CryptoWithdrawGroup.withdraw_card, only_confirmed)
 async def crypto_set_withdraw_type(call: CallbackQuery, state: FSMContext):
 	crypto_type = call.data.replace('crypto_set_withdraw_', '').lower()
-
-	limits = {
-		'bitcoin': (10650.0, 665000.0),
-		'ethereum': (1000.0, 665000.0),
-		'tether erc20': (1500.0, 5000000.0),
-		'tether trc20': (1500.0, 5000000.0),
-		'tether bep20': (1500.0, 5000000.0),
-	}
-
-	limit = limits.get(crypto_type, (1500.0, 665070.0))
+	limit = LIMITS.get(crypto_type, (1500.0, 665070.0))
 
 	await state.update_data(withdraw_card=crypto_type, limit=limit)
 
@@ -2217,12 +2524,51 @@ async def crypto_set_withdraw_type(call: CallbackQuery, state: FSMContext):
 		await call.answer("Вы заблокированы")
 		return
 	
-	message = f"💰️ Баланс: {partner['balance']} RUB\nВывод на криптовалюту {crypto_type.upper()}\nЛимит одного вывода: от {limit[0]} ₽ до {limit[1]} ₽\n\n✍️ Введите сумму которую Вы хотите вывести."
+	message = f"💰️ Баланс: {partner['balance']} RUB\nВывод на криптовалюту {crypto_type.upper()}\n\nВведите адрес вашего криптокошелька: "
 
-	image = FSInputFile(path=f"{config.SINWIN_DATA}/main/steam.jpg")
+	await call.message.edit_text(message, parse_mode=ParseMode.HTML, reply_markup=inline.create_back_markup("withdraw"))
+	await state.set_state(CryptoWithdrawGroup.address)
+	
+	# message = f"💰️ Баланс: {partner['balance']} RUB\nВывод на криптовалюту {crypto_type.upper()}\nЛимит одного вывода: от {limit[0]} ₽ до {limit[1]} ₽\n\n✍️ Введите сумму которую Вы хотите вывести."
 
-	await call.message.edit_media(
-		InputMediaPhoto(media=image, caption=message, parse_mode=ParseMode.HTML),
+	# image = FSInputFile(path=f"{config.SINWIN_DATA}/main/crupto.jpg")
+
+	# await call.message.edit_media(
+	# 	InputMediaPhoto(media=image, caption=message, parse_mode=ParseMode.HTML),
+	# 	parse_mode=ParseMode.HTML,
+	# 	reply_markup=inline.create_back_markup("withdraw"),
+	# )
+
+	# await state.set_state(CryptoWithdrawGroup.withdraw_sum)
+
+
+@default_router.message(F.text, CryptoWithdrawGroup.address, message_only_confirmed)
+async def withdraw_crypto_address(message: Message, state: FSMContext):
+	partners = await APIRequest.post(
+		"/partner/find", {"opts": {"tg_id": message.from_user.id}}
+	)
+	partner = partners[0]["partners"][-1]
+
+	if not partner["approved"]:
+		print(partner)
+		users[message.from_user.id] = users.get(message.from_user.id, {})
+		users[message.from_user.id]["final"] = False
+		await message.answer("Вы заблокированы")
+		return
+
+	data = await state.get_data()
+	crypto_type = data.get("withdraw_card").lower()
+	limit = LIMITS.get(crypto_type, (1500.0, 665070.0))
+
+	messages = f"💰️ Баланс: {partner['balance']} RUB\nВывод на криптовалюту {crypto_type.upper()} {message.text}\nЛимит одного вывода: от {limit[0]} ₽ до {limit[1]} ₽\n\n✍️ Введите сумму которую Вы хотите вывести."
+
+	await state.update_data(address=message.text)
+	await state.update_data(withdraw_card=f'{crypto_type.upper()} {message.text}')
+
+	image = FSInputFile(path=f"{config.SINWIN_DATA}/main/crupto.jpg")
+
+	await message.answer_photo(
+		photo=image, caption=messages,
 		parse_mode=ParseMode.HTML,
 		reply_markup=inline.create_back_markup("withdraw"),
 	)
@@ -2255,7 +2601,6 @@ async def withdraw_crypto_message(message: Message, state: FSMContext):
 			"Ошибка: некорректный ввод\n\nПожалуйста, введите корректную сумму для вывода, используя только цифры.",
 			reply_markup=inline.create_back_markup("withdraw_crypto"),
 		)
-		await state.clear()
 		return
 	
 	data = await state.get_data()
@@ -2266,22 +2611,19 @@ async def withdraw_crypto_message(message: Message, state: FSMContext):
 				f"💰️ Баланс: {partner['balance']} RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
 				reply_markup=inline.create_back_markup("withdraw_crypto"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		elif sum_to_withdraw > data['limit'][1]:
 			await message.answer(
 				f"Ошибка: сумма превышает лимит\n\nСумма {sum_to_withdraw} превышает максимально допустимую для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам:",
 				reply_markup=inline.create_back_markup("withdraw_crypto"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		elif sum_to_withdraw < data['limit'][0]:
 			await message.answer(
 				f"Ошибка: сумма слишком мала\n\nСумма {sum_to_withdraw} меньше минимально допустимой для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам.",
 				reply_markup=inline.create_back_markup("withdraw_crypto"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		else:
 			await state.update_data(withdraw_sum=sum_to_withdraw)
 			data = await state.get_data()
@@ -2434,22 +2776,19 @@ async def withdraw_card_message(message: Message, state: FSMContext):
 				f"💰️ Баланс: {partner['balance']} RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
 				reply_markup=inline.create_back_markup("withdraw_card"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		elif sum_to_withdraw > 50000.0:
 			await message.answer(
 				f"Ошибка: сумма превышает лимит\n\nСумма {sum_to_withdraw} превышает максимально допустимую для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам:",
 				reply_markup=inline.create_back_markup("withdraw_card"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		elif sum_to_withdraw < 2000.0:
 			await message.answer(
 				f"Ошибка: сумма слишком мала\n\nСумма {sum_to_withdraw} меньше минимально допустимой для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам.",
 				reply_markup=inline.create_back_markup("withdraw_card"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		else:
 			await state.update_data(withdraw_sum=sum_to_withdraw)
 			await message.answer(
@@ -3016,22 +3355,19 @@ async def withdraw_steam_message(message: Message, state: FSMContext):
 				f"💰️ Баланс: {partner['balance']} RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
 				reply_markup=inline.create_back_markup("withdraw_steam"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		elif sum_to_withdraw > 12000.0:
 			await message.answer(
 				f"Ошибка: сумма превышает лимит\n\nСумма {sum_to_withdraw} превышает максимально допустимую для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам:",
 				reply_markup=inline.create_back_markup("withdraw_steam"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		elif sum_to_withdraw < 2000.0:
 			await message.answer(
 				f"Ошибка: сумма слишком мала\n\nСумма {sum_to_withdraw} меньше минимально допустимой для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам.",
 				reply_markup=inline.create_back_markup("withdraw_steam"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		else:
 			await state.update_data(withdraw_sum=sum_to_withdraw)
 			await message.answer(
@@ -3200,22 +3536,19 @@ async def withdraw_phone_message(message: Message, state: FSMContext):
 				f"💰️ Баланс: {partner['balance']} RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
 				reply_markup=inline.create_back_markup("withdraw_phone"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		elif sum_to_withdraw > 100000.0:
 			await message.answer(
 				f"Ошибка: сумма превышает лимит\n\nСумма {sum_to_withdraw} превышает максимально допустимую для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам:",
 				reply_markup=inline.create_back_markup("withdraw_phone"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		elif sum_to_withdraw < 5000.0:
 			await message.answer(
 				f"Ошибка: сумма слишком мала\n\nСумма {sum_to_withdraw} меньше минимально допустимой для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам.",
 				reply_markup=inline.create_back_markup("withdraw_phone"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		else:
 			await state.update_data(withdraw_sum=sum_to_withdraw)
 			await message.answer(
@@ -3385,22 +3718,19 @@ async def withdraw_fkwallet_message(message: Message, state: FSMContext):
 				f"💰️ Баланс: {partner['balance']} RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
 				reply_markup=inline.create_back_markup("withdraw_fkwallet"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		elif sum_to_withdraw > 100000.0:
 			await message.answer(
 				f"Ошибка: сумма превышает лимит\n\nСумма {sum_to_withdraw} превышает максимально допустимую для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам:",
 				reply_markup=inline.create_back_markup("withdraw_fkwallet"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		elif sum_to_withdraw < 1800.0:
 			await message.answer(
 				f"Ошибка: сумма слишком мала\n\nСумма {sum_to_withdraw} меньше минимально допустимой для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам.",
 				reply_markup=inline.create_back_markup("withdraw_fkwallet"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		else:
 			await state.update_data(withdraw_sum=sum_to_withdraw)
 			await message.answer(
@@ -3571,22 +3901,19 @@ async def withdraw_piastrix_message(message: Message, state: FSMContext):
 				f"💰️ Баланс: {partner['balance']} RUB\n\nОшибка: недостаточно средств. У вас недостаточно средств на балансе для выполнения этой операции.\n\nПожалуйста, проверьте ваш баланс и введите сумму, которая не превышает доступные средства.",
 				reply_markup=inline.create_back_markup("withdraw_piastrix"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		elif sum_to_withdraw > 100000.0:
 			await message.answer(
 				f"Ошибка: сумма превышает лимит\n\nСумма {sum_to_withdraw} превышает максимально допустимую для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам:",
 				reply_markup=inline.create_back_markup("withdraw_piastrix"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		elif sum_to_withdraw < 1800.0:
 			await message.answer(
 				f"Ошибка: сумма слишком мала\n\nСумма {sum_to_withdraw} меньше минимально допустимой для выбранного метода вывода.\n\nПожалуйста, введите сумму, соответствующую указанным лимитам.",
 				reply_markup=inline.create_back_markup("withdraw_piastrix"),
 			)
-			await state.clear()
-			user["withdraw_card"] = False
+			
 		else:
 			await state.update_data(withdraw_sum=sum_to_withdraw)
 			await message.answer(

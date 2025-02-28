@@ -47,7 +47,7 @@ def validate_name(name: str) -> bool:
 	:returns:	validation status
 	:rtype:		bool
 	"""
-	pattern = r'^[A-za-zА-Яа-яЁё\s]+\d{1,3}$'
+	pattern = r'^[A-Za-zА-Яа-яЁё]+ [0-9]+$'
 
 	if re.match(pattern, name):
 		return True
@@ -515,13 +515,30 @@ async def send_request_callback(call: CallbackQuery):
 		else f'<a href="tg://user?id={call.from_user.id}">{call.from_user.first_name}</a>'
 	)
 
+	rpartners = await APIRequest.post('/partner/find', {'opts': {'partner_hash': referals[call.from_user.id]['referrer_hash']}})
+	rpartner = rpartners[0]['partners']
+
+	pusers = await APIRequest.post('/user/find', {'opts': {'tg_id': call.from_user.id}})
+	puser = pusers[0]['users']
+
+	if puser:
+		pdata = 'да'
+	else:
+		pdata = 'нет'
+
+	if rpartner:
+		rpartner = rpartner[-1]
+		rdata = f'{rpartner["username"]}, {rpartner["partner_hash"]}'
+	else:
+		rdata = 'отсутствует'
+
 	form = [
 		f'Анкета: {username}',
 		f'Telegram ID: {call.from_user.id}',
 		f'Телефон: <code>{data.get("number_phone")}</code>',
-		'Рефка: {username_ref}, {hash_ref}',
+		f'Рефка: {rdata}',
 		f'Попытка регистрации: {users_data.get("count", 1)}',
-		'Пользовался уже ботами: нет\n',
+		f'Пользовался уже ботами: {pdata}\n',
 		f'Имя, возраст: {data.get("name")}',
 		f'Город: {data.get("city")}',
 		f'Есть ли у вас опыт в арбитраже трафика: {data.get("experience_status")}',

@@ -153,6 +153,20 @@ def create_record_creo_markup():
 	return builder.as_markup()
 
 
+def create_achievements_update_markup(alerts: bool):
+	builder = InlineKeyboardBuilder()
+	builder.row(
+		InlineKeyboardButton(text='🎯 Новые цели', callback_data='achievements')
+	)
+	builder.row(
+		InlineKeyboardButton(text='🏆️ Мои достижения', callback_data='my_achievs')
+	)
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
 def create_achievements_markup(alerts: bool):
 	builder = InlineKeyboardBuilder()
 	builder.row(
