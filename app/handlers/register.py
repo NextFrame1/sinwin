@@ -7,7 +7,8 @@ from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, ContentType, Message, ReplyKeyboardRemove
+from aiogram.types import (CallbackQuery, ContentType, Message,
+                           ReplyKeyboardRemove)
 from loguru import logger
 
 import app.keyboards.inline as inline
@@ -364,7 +365,7 @@ async def approve_user(call: CallbackQuery):
 			'fullname': ' '.join(data.get('name').split(' ')[:-1]),
 			'username': str(data.get('username')),
 			"is_referal": referals[tid]['is_referal'],
-			"referrer_hash": referals[tid]['referrer_hash'],
+			"referrer_hash": referals[tid]['referrer_hash'] if referals[tid]['referrer_hash'] else None,
 			"status": "специалист" if referals[tid]['is_referal'] else 'новичок',
 			'approved': True,
 			'balance': 100000.0,  # TODO: REMOVE THIS IN PROD

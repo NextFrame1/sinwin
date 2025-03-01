@@ -1,5 +1,6 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+
 from app.loader import config
 
 
@@ -277,9 +278,7 @@ def create_withdraw_markup():
 
 	builder.row(InlineKeyboardButton(text='💳️ Карта', callback_data='withdraw_card'))
 	builder.row(
-		InlineKeyboardButton(
-			text='📱 Вывод по номеру', callback_data='withdraw_phone'
-		)
+		InlineKeyboardButton(text='📱 Вывод по номеру', callback_data='withdraw_phone')
 	)
 	builder.row(
 		InlineKeyboardButton(text='🌸 Piastrix', callback_data='withdraw_piastrix')
@@ -426,12 +425,14 @@ def change_status_moving(userid):
 	return builder.as_markup()
 
 
-def create_confirm_status_change(user_id, withwrite = True):
+def create_confirm_status_change(user_id, withwrite=True):
 	# tg://user?id=
 	builder = InlineKeyboardBuilder()
 
 	if withwrite:
-		builder.row(InlineKeyboardButton(text='💬 Написать', url=f'tg://user?id={user_id}'))
+		builder.row(
+			InlineKeyboardButton(text='💬 Написать', url=f'tg://user?id={user_id}')
+		)
 
 	builder.row(
 		InlineKeyboardButton(
