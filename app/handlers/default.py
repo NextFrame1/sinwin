@@ -9,7 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, FSInputFile, InputMediaPhoto, Message
 from apscheduler.triggers.interval import IntervalTrigger
 from dateutil.relativedelta import relativedelta
-
+from loguru import logger
 import app.keyboards.menu_inline as inline
 from app.api import APIRequest
 from app.database.test import users
@@ -891,16 +891,16 @@ def check_achievements(
 	)
 
 	achievements.append(
-		f'Количество: {count}\n\n✅ Пользователей по Вашим ссылкам: {",".join(thresholds["users_count"])}\n'
+		f'Количество: {count}\n\n✅ Пользователей по Вашим ссылкам: {", ".join(thresholds["users_count"])}\n'
 	)
 	achievements.append(f'✅ Депозиты: {",".join(thresholds["deposits_sum"])}\n')
 	achievements.append(f'✅ Доход: {",".join(thresholds["income"])}\n')
 	achievements.append(
-		f'✅ Первые депозиты: {",".join(thresholds["first_deposits_count"])}'
+		f'✅ Первые депозиты: {",".join(thresholds["first_deposits_count"])}\n'
 	)
-	achievements.append(f'✅ Рефералы: {",".join(thresholds["referrals_count"])}')
+	achievements.append(f'✅ Рефералы: {",".join(thresholds["referrals_count"])}\n')
 	achievements.append(
-		f'✅ Сгенерированные сигналы: {",".join(thresholds["signals_count"])}'
+		f'✅ Сгенерировано сигналов: {",".join(thresholds["signals_count"])}'
 	)
 
 	return achievements
@@ -1173,32 +1173,44 @@ def check_achievements_var2(
 	]
 
 	for threshold in ACHIEVEMENTS['users']:
-		if users_count < threshold:
+		if users_count >= threshold:
+			continue
+		elif users_count < threshold:
 			achievements.append(f'❌ Пользователей по вашим ссылкам: {threshold}')
 			break
 
 	for threshold in ACHIEVEMENTS['deposits']:
-		if deposits_sum < threshold:
+		if deposits_sum >= threshold:
+			continue
+		elif deposits_sum < threshold:
 			achievements.append(f'❌ Депозиты: {convert_to_human(threshold)} рублей')
 			break
 
 	for threshold in ACHIEVEMENTS['income']:
+		if income >= threshold:
+			continue
 		if income < threshold:
 			achievements.append(f'❌ Доход: {convert_to_human(threshold)} рублей')
 			break
 
 	for threshold in ACHIEVEMENTS['first_deposits']:
-		if first_deposits_count < threshold:
+		if first_deposits_count >= threshold:
+			continue
+		elif first_deposits_count < threshold:
 			achievements.append(f'❌ Первые депозиты: {threshold}')
 			break
 
 	for threshold in ACHIEVEMENTS['referrals']:
-		if referrals_count <= threshold:
+		if referrals_count >= threshold:
+			continue
+		elif referrals_count < threshold:
 			achievements.append(f'❌ Количество рефералов: {threshold}')
 			break
 
 	for threshold in ACHIEVEMENTS['signals']:
-		if signals_count < threshold:
+		if signals_count >= threshold:
+			continue
+		elif signals_count < threshold:
 			achievements.append(f'❌ Сгенерировано сигналов: {threshold}')
 			break
 
@@ -1245,9 +1257,11 @@ async def achievements_callback(call: CallbackQuery):
 		)
 
 		cpartners = await APIRequest.post(
-			'/partner/find', {'opts': {'referrer_hash': partner['referrer_hash']}}
+			'/partner/find', {'opts': {'referrer_hash': partner['referrer_hash'], "is_referal": True}}
 		)
 		cpartners = cpartners[0]['partners']
+
+		logger.error(len(cpartners))
 
 		opts = {'game': 'Mines', 'referal_parent': partner['partner_hash']}
 		data = await collect_stats(opts)
@@ -2572,13 +2586,18 @@ async def profile_callback(call: CallbackQuery):
 	difference = cur_date - reg_date
 	days_difference = max(difference.days, 1)
 
+	cpartners = await APIRequest.post(
+		'/partner/find', {'opts': {'referrer_hash': partner['referrer_hash'], "is_referal": True}}
+	)
+	cpartners = cpartners[0]['partners']
+
 	messages = [
 		f'<b>Ваш профиль</b>\n\n🆔 Ваш ID: {call.from_user.id}',
 		f'🛡️ Ваш хеш: {partner_hash}\n',
 		f'💰️ Баланс: {partner.get("balance", 0.0)} RUB',
 		f'⚖️ Статус: {status}',
-		'🎯 Вы получаете: 35%\n',
-		'🏗️ Количество рефералов: 0',
+		f'🎯 Вы получаете: {get_percent_by_status(partner["status"])}%\n',
+		f'🏗️ Количество рефералов: {len(cpartners)}',
 		f'☯️ Количество дней с нами: {days_difference}',
 		# f'Ваша реферальная ссылка на @IziMin_test_Bot: https://t.me/IziMin_test_Bot?start='
 	]
