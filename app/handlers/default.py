@@ -191,19 +191,19 @@ async def statistics_callback(call: CallbackQuery):
 		)
 
 		today_deps = (
-			sum([dep['amount'] for dep in stats['today']['dep']]) + today_firstdeps
+			sum([dep['amount'] for dep in stats['today']['dep']]) + sum([dep['amount'] for dep in stats['today']['firstdep']])
 		)
 		yesterday_deps = (
 			sum([dep['amount'] for dep in stats['yesterday']['dep']])
-			+ yesterday_firstdeps
+			+ sum([dep['amount'] for dep in stats['yesterday']['firstdep']])
 		)
 		last_week_deps = (
 			sum([dep['amount'] for dep in stats['last_week']['dep']])
-			+ last_week_firstdeps
+			+ sum([dep['amount'] for dep in stats['last_week']['firstdep']])
 		)
 		last_month_deps = (
 			sum([dep['amount'] for dep in stats['last_month']['dep']])
-			+ last_month_firstdeps
+			+ sum([dep['amount'] for dep in stats['last_month']['firstdep']])
 		)
 
 		today_income = sum([dep['income'] for dep in stats['today']['income']])
@@ -278,14 +278,6 @@ async def statistics_callback(call: CallbackQuery):
 
 		data = await collect_stats(opts)
 
-		# api_count = len(
-		# 	[
-		# 		apinum
-		# 		for partnerhash, apinum in result["api_count"].items()
-		# 		if partnerhash == partner["partner_hash"]
-		# 	]
-		# )
-
 		api_count = result['api_count'].get(partner['partner_hash'], 0)
 
 		today_firstdeps = len(
@@ -317,34 +309,48 @@ async def statistics_callback(call: CallbackQuery):
 			]
 		)
 
-		today_deps = today_firstdeps + sum(
+		today_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['today']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]
-		)
-		yesterday_deps = yesterday_firstdeps + sum(
+			]) + sum([
+				dep['amount']
+				for dep in stats['today']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			])
+
+		yesterday_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['yesterday']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]
-		)
-		last_week_deps = last_week_firstdeps + sum(
+			]) + sum([
+				dep['amount']
+				for dep in stats['yesterday']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			])
+
+		last_week_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['last_week']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]
-		)
-		last_month_deps = last_month_firstdeps + sum(
+			]) + sum([
+				dep['amount']
+				for dep in stats['last_week']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			])
+		last_month_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['last_month']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]
-		)
+			]) + sum([
+				dep['amount']
+				for dep in stats['last_month']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			])
 
 		today_income = sum(
 			[
@@ -468,24 +474,40 @@ async def statistics_mines_callback(call: CallbackQuery):
 			]
 		)
 
-		today_deps = today_firstdeps + sum(
+		today_deps = sum([
+				dep['amount']
+				for dep in stats['today']['firstdep']
+				if dep['game'] == 'Mines'
+			]) + sum(
 			[dep['amount'] for dep in stats['today']['dep'] if dep['game'] == 'Mines']
 		)
-		yesterday_deps = yesterday_firstdeps + sum(
+		yesterday_deps = sum([
+				dep['amount']
+				for dep in stats['yesterday']['firstdep']
+				if dep['game'] == 'Mines'
+			]) + sum(
 			[
 				dep['amount']
 				for dep in stats['yesterday']['dep']
 				if dep['game'] == 'Mines'
 			]
 		)
-		last_week_deps = last_week_firstdeps + sum(
+		last_week_deps = sum([
+				dep['amount']
+				for dep in stats['last_week']['firstdep']
+				if dep['game'] == 'Mines'
+			]) + sum(
 			[
 				dep['amount']
 				for dep in stats['last_week']['dep']
 				if dep['game'] == 'Mines'
 			]
 		)
-		last_month_deps = last_month_firstdeps + sum(
+		last_month_deps = sum([
+				dep['amount']
+				for dep in stats['last_month']['firstdep']
+				if dep['game'] == 'Mines'
+			]) + sum(
 			[
 				dep['amount']
 				for dep in stats['last_month']['dep']
@@ -623,7 +645,12 @@ async def statistics_mines_callback(call: CallbackQuery):
 			]
 		)
 
-		today_deps = today_firstdeps + sum(
+		today_deps = sum([
+				dep['amount']
+				for dep in stats['today']['firstdep']
+				if dep['game'] == 'Mines'
+				and dep['partner_hash'] == partner['partner_hash']
+			]) + sum(
 			[
 				dep['amount']
 				for dep in stats['today']['dep']
@@ -631,7 +658,12 @@ async def statistics_mines_callback(call: CallbackQuery):
 				and dep['partner_hash'] == partner['partner_hash']
 			]
 		)
-		yesterday_deps = yesterday_firstdeps + sum(
+		yesterday_deps = sum([
+				dep['amount']
+				for dep in stats['yesterday']['firstdep']
+				if dep['game'] == 'Mines'
+				and dep['partner_hash'] == partner['partner_hash']
+			]) + sum(
 			[
 				dep['amount']
 				for dep in stats['yesterday']['dep']
@@ -639,7 +671,12 @@ async def statistics_mines_callback(call: CallbackQuery):
 				and dep['partner_hash'] == partner['partner_hash']
 			]
 		)
-		last_week_deps = last_week_firstdeps + sum(
+		last_week_deps = sum([
+				dep['amount']
+				for dep in stats['last_week']['firstdep']
+				if dep['game'] == 'Mines'
+				and dep['partner_hash'] == partner['partner_hash']
+			]) + sum(
 			[
 				dep['amount']
 				for dep in stats['last_week']['dep']
@@ -647,7 +684,12 @@ async def statistics_mines_callback(call: CallbackQuery):
 				and dep['partner_hash'] == partner['partner_hash']
 			]
 		)
-		last_month_deps = last_month_firstdeps + sum(
+		last_month_deps = sum([
+				dep['amount']
+				for dep in stats['last_month']['firstdep']
+				if dep['game'] == 'Mines'
+				and dep['partner_hash'] == partner['partner_hash']
+			]) + sum(
 			[
 				dep['amount']
 				for dep in stats['last_month']['dep']
@@ -1649,47 +1691,6 @@ async def status_levels_callback(call: CallbackQuery):
 		await call.answer('Доступ запрещен')
 		return
 
-	opts = {'referal_parent': partner['partner_hash']}
-
-	data = await collect_stats(opts)
-
-	api_count = len(
-		[
-			apinum
-			for partnerhash, apinum in result['api_count'].items()
-			if partnerhash == partner['partner_hash']
-		]
-	)
-
-	today_deps = sum(
-		[
-			dep['amount']
-			for dep in stats['today']['dep']
-			if dep['partner_hash'] == partner['partner_hash']
-		]
-	)
-	yesterday_deps = sum(
-		[
-			dep['amount']
-			for dep in stats['yesterday']['dep']
-			if dep['partner_hash'] == partner['partner_hash']
-		]
-	)
-	last_week_deps = sum(
-		[
-			dep['amount']
-			for dep in stats['last_week']['dep']
-			if dep['partner_hash'] == partner['partner_hash']
-		]
-	)
-	last_month_deps = sum(
-		[
-			dep['amount']
-			for dep in stats['last_month']['dep']
-			if dep['partner_hash'] == partner['partner_hash']
-		]
-	)
-
 	today_firstdeps = len(
 		[
 			dep['amount']
@@ -1849,8 +1850,6 @@ async def status_callback(call: CallbackQuery):
 
 		api_count = result['api_count'].get(partner['partner_hash'], 0)
 
-		# api_count = result["api_count"].get(partner["partner_hash"])
-
 		today_firstdeps = len(
 			[
 				dep['amount']
@@ -1880,34 +1879,49 @@ async def status_callback(call: CallbackQuery):
 			]
 		)
 
-		today_deps = today_firstdeps + sum(
+		today_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['today']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]
-		)
-		yesterday_deps = yesterday_firstdeps + sum(
+			]) + sum([
+				dep['amount']
+				for dep in stats['today']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			])
+	
+		yesterday_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['yesterday']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]
-		)
-		last_week_deps = last_week_firstdeps + sum(
+			]) + sum([
+				dep['amount']
+				for dep in stats['yesterday']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			])
+
+		last_week_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['last_week']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]
-		)
-		last_month_deps = last_month_firstdeps + sum(
+			]) + sum([
+				dep['amount']
+				for dep in stats['last_week']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			])
+
+		last_month_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['last_month']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]
-		)
+			]) + sum([
+				dep['amount']
+				for dep in stats['last_month']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			])
 
 		today_income = sum(
 			[
@@ -1965,12 +1979,10 @@ async def status_callback(call: CallbackQuery):
 			[info[partner['partner_hash']] for _, info in result['signals'].items()]
 		)
 
+		last_month_income = today_income + yesterday_income + last_week_income + last_month_income
+
 		last_month_income_str = '{:,}'.format(last_month_income).replace(',', ' ')
 		alltime_income_str = '{:,}'.format(alltime_income).replace(',', ' ')
-
-		last_month_income = (
-			today_income + yesterday_income + last_week_income + last_month_income
-		)
 
 		statuses, may_up = get_status_conditions(
 			partner['status'], last_month_income, alltime_income, alltime_firstdeps
@@ -2349,28 +2361,44 @@ async def change_status_moving_callback(call: CallbackQuery):
 		]
 	)
 
-	today_deps = today_firstdeps + sum(
+	today_deps = sum([
+			dep['amount']
+			for dep in stats['today']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]) + sum(
 		[
 			dep['amount']
 			for dep in stats['today']['dep']
 			if dep['partner_hash'] == partner['partner_hash']
 		]
 	)
-	yesterday_deps = yesterday_firstdeps + sum(
+	yesterday_deps = sum([
+			dep['amount']
+			for dep in stats['yesterday']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]) + sum(
 		[
 			dep['amount']
 			for dep in stats['yesterday']['dep']
 			if dep['partner_hash'] == partner['partner_hash']
 		]
 	)
-	last_week_deps = last_week_firstdeps + sum(
+	last_week_deps = sum([
+			dep['amount']
+			for dep in stats['last_week']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]) + sum(
 		[
 			dep['amount']
 			for dep in stats['last_week']['dep']
 			if dep['partner_hash'] == partner['partner_hash']
 		]
 	)
-	last_month_deps = last_month_firstdeps + sum(
+	last_month_deps = sum([
+			dep['amount']
+			for dep in stats['last_month']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]) + sum(
 		[
 			dep['amount']
 			for dep in stats['last_month']['dep']
