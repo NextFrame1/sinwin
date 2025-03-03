@@ -475,6 +475,21 @@ def create_support_transac_markup():
 	return builder.as_markup()
 
 
+def create_achiev_get_markup():
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(text='🎯 Новые цели', callback_data='achievements')
+	)
+	builder.row(
+		InlineKeyboardButton(text='🏆 Мои достижения', callback_data='my_achievs')
+	)
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
 def create_back_markup(callback: str = 'showmenu'):
 	builder = InlineKeyboardBuilder()
 

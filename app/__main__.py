@@ -119,6 +119,7 @@ def check_achievements_for_reload(
 	first_deposits_count,
 	referrals_count,
 	signals_count,
+	api_count,
 ):
 	thresholds = {
 		'users_count': [str(users_count)],
@@ -127,6 +128,7 @@ def check_achievements_for_reload(
 		'first_deposits_count': [str(first_deposits_count)],
 		'referrals_count': [str(referrals_count)],
 		'signals_count': [str(signals_count)],
+		'api_count': [str(api_count)],
 	}
 
 	for threshold in ACHIEVEMENTS['users']:
@@ -155,6 +157,11 @@ def check_achievements_for_reload(
 			thresholds['signals_count'].append(str(threshold))
 			break
 
+	for threshold in ACHIEVEMENTS['api']:
+		if signals_count < threshold:
+			thresholds['api_count'].append(str(threshold))
+			break
+
 	count = (
 		len(thresholds['users_count'])
 		+ len(thresholds['signals_count'])
@@ -162,7 +169,8 @@ def check_achievements_for_reload(
 		+ len(thresholds['income'])
 		+ len(thresholds['first_deposits_count'])
 		+ len(thresholds['referrals_count'])
-		- 6
+		+ len(thresholds['api_count'])
+		- 7
 	)
 
 	return {
@@ -198,22 +206,18 @@ async def achievs_alerts():
 		opts = {'game': 'Mines', 'referal_parent': partner['partner_hash']}
 		data = await collect_stats(opts)
 
+		api_count = result['api_count']
+
 		achievements = check_achievements_for_reload(
 			data['users_count'],
 			result['income'],
 			result['deposits_sum'],
 			result['first_deposits_count'],
+			api_count,
 		)
 
 		count = achievements['count']
 		thresholds = achievements['thresholds']
-
-		# thresholds_data = {
-		# 	'users_count': ['0'],
-		# 	'deposits_sum': ['0'],
-		# 	'income': ['0'],
-		# 	'first_deposits_count': ['0'],
-		# }
 
 		loaded_achievs = loaded_achievements.get(userid, {})
 
@@ -221,27 +225,31 @@ async def achievs_alerts():
 
 		loaded_count = loaded_achievs.get('count')
 
-		if loaded_count > count:
+		if count > loaded_count:
 			loaded_thresholds = loaded_achievs['thresholds']
 
 			users_count = list(
-				set(loaded_thresholds['users_count']) - set(thresholds['users_count'])
+				set(thresholds['users_count']) - set(loaded_thresholds['users_count'])
 			)
 			deposits_sum = list(
-				set(loaded_thresholds['deposits_sum']) - set(thresholds['deposits_sum'])
+				set(thresholds['deposits_sum']) - set(loaded_thresholds['deposits_sum'])
 			)
-			income = list(set(loaded_thresholds['income']) - set(thresholds['income']))
+			income = list(set(thresholds['income']) - set(loaded_thresholds['income']))
 			first_deposits_count = list(
-				set(loaded_thresholds['first_deposits_count'])
-				- set(thresholds['first_deposits_count'])
+				set(thresholds['first_deposits_count'])
+				- set(loaded_thresholds['first_deposits_count'])
 			)
 			referrals_count = list(
-				set(loaded_thresholds['referrals_count'])
-				- set(thresholds['referrals_count'])
+				set(thresholds['referrals_count'])
+				- set(loaded_thresholds['referrals_count'])
 			)
 			signals_count = list(
-				set(loaded_thresholds['signals_count'])
-				- set(thresholds['signals_count'])
+				set(thresholds['signals_count'])
+				- set(loaded_thresholds['signals_count'])
+			)
+
+			api_count = list(
+				set(thresholds['api_count']) - set(loaded_thresholds['api_count'])
 			)
 
 			if users_count:
@@ -284,6 +292,13 @@ async def achievs_alerts():
 					await bot.send_message(
 						chat_id=userid,
 						text=f'Достижение успешно выполнено.\n\n✅ Сгенерировано сигналов: больше {data}.',
+					)
+
+			if api_count:
+				for data in api_count:
+					await bot.send_message(
+						chat_id=userid,
+						text=f'Достижение успешно выполнено.\n\n✅ API: больше {data}.',
 					)
 
 

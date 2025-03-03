@@ -1,5 +1,7 @@
+from pathlib import Path
 from typing import Any, Dict
 
+import orjson as json
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -8,6 +10,68 @@ from hermes_langlib.storage import load_config as i18n_load_config
 
 from app.config import get_config, load_config
 from app.database._debug import UsersDebug
+
+DEFAULT_DATA = {
+	'topworkers': {
+		'first_place': {
+			'type': 'uplevel',
+			'status': 'профессионал',
+		},
+		'second_place': {
+			'type': 'prize',
+			'amount': 30_000.0,
+		},
+		'third_place': {
+			'type': 'prize',
+			'amount': 10_000.0,
+		},
+	}
+}
+
+
+def validate_data(data: dict):
+	count = 0
+	topworkers = data.get('topworkers')
+
+	if topworkers.get('first_place', False):
+		count += 1
+	if topworkers.get('second_place', False):
+		count += 1
+	if topworkers.get('third_place', False):
+		count += 1
+
+	if count != 3:
+		raise Exception(
+			'Fatal Error: Invalid data in data.json file. Please, check and fix it.'
+		)
+
+
+def load_data():
+	if not Path('data.json').exists():
+		data = DEFAULT_DATA
+		with open('data.json', 'wb') as file:
+			file.write(json.dumps(data))
+	else:
+		try:
+			with open('data.json', 'rb') as file:
+				data = json.loads(file.read())
+		except Exception:
+			data = DEFAULT_DATA
+
+	validate_data(data)
+
+	return data
+
+
+sinwin_data = load_data()
+
+
+def save_data():
+	global sinwin_data
+
+	with open('data.json', 'wb') as file:
+		file.write(json.dumps(sinwin_data))
+
 
 ACHIEVEMENTS = {
 	'users': [

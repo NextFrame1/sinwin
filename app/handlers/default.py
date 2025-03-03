@@ -10,6 +10,7 @@ from aiogram.types import CallbackQuery, FSInputFile, InputMediaPhoto, Message
 from apscheduler.triggers.interval import IntervalTrigger
 from dateutil.relativedelta import relativedelta
 from loguru import logger
+
 import app.keyboards.menu_inline as inline
 from app.api import APIRequest
 from app.database.test import users
@@ -20,6 +21,7 @@ from app.loader import (
 	convert_to_human,
 	loaded_achievements,
 	scheduler,
+	sinwin_data,
 	user_achievements,
 )
 from app.utils.algorithms import is_valid_card
@@ -190,21 +192,18 @@ async def statistics_callback(call: CallbackQuery):
 			[dep['amount'] for dep in stats['last_month']['firstdep']]
 		)
 
-		today_deps = (
-			sum([dep['amount'] for dep in stats['today']['dep']]) + sum([dep['amount'] for dep in stats['today']['firstdep']])
+		today_deps = sum([dep['amount'] for dep in stats['today']['dep']]) + sum(
+			[dep['amount'] for dep in stats['today']['firstdep']]
 		)
-		yesterday_deps = (
-			sum([dep['amount'] for dep in stats['yesterday']['dep']])
-			+ sum([dep['amount'] for dep in stats['yesterday']['firstdep']])
-		)
-		last_week_deps = (
-			sum([dep['amount'] for dep in stats['last_week']['dep']])
-			+ sum([dep['amount'] for dep in stats['last_week']['firstdep']])
-		)
-		last_month_deps = (
-			sum([dep['amount'] for dep in stats['last_month']['dep']])
-			+ sum([dep['amount'] for dep in stats['last_month']['firstdep']])
-		)
+		yesterday_deps = sum(
+			[dep['amount'] for dep in stats['yesterday']['dep']]
+		) + sum([dep['amount'] for dep in stats['yesterday']['firstdep']])
+		last_week_deps = sum(
+			[dep['amount'] for dep in stats['last_week']['dep']]
+		) + sum([dep['amount'] for dep in stats['last_week']['firstdep']])
+		last_month_deps = sum(
+			[dep['amount'] for dep in stats['last_month']['dep']]
+		) + sum([dep['amount'] for dep in stats['last_month']['firstdep']])
 
 		today_income = sum([dep['income'] for dep in stats['today']['income']])
 		yesterday_income = sum([dep['income'] for dep in stats['yesterday']['income']])
@@ -214,8 +213,14 @@ async def statistics_callback(call: CallbackQuery):
 		)
 
 		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		other_dates_firstdep = [
+			info for name, info in stats.items() if name == 'firstdep'
+		]
+		others_firstdep = len([dep['x'] for dep in other_dates_firstdep])
+
 		alltime_firstdeps = (
-			today_firstdeps
+			others_firstdep
+			+ today_firstdeps
 			+ yesterday_firstdeps
 			+ last_week_firstdeps
 			+ last_month_firstdeps
@@ -314,43 +319,55 @@ async def statistics_callback(call: CallbackQuery):
 				dep['amount']
 				for dep in stats['today']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]) + sum([
+			]
+		) + sum(
+			[
 				dep['amount']
 				for dep in stats['today']['firstdep']
 				if dep['partner_hash'] == partner['partner_hash']
-			])
+			]
+		)
 
 		yesterday_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['yesterday']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]) + sum([
+			]
+		) + sum(
+			[
 				dep['amount']
 				for dep in stats['yesterday']['firstdep']
 				if dep['partner_hash'] == partner['partner_hash']
-			])
+			]
+		)
 
 		last_week_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['last_week']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]) + sum([
+			]
+		) + sum(
+			[
 				dep['amount']
 				for dep in stats['last_week']['firstdep']
 				if dep['partner_hash'] == partner['partner_hash']
-			])
+			]
+		)
 		last_month_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['last_month']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]) + sum([
+			]
+		) + sum(
+			[
 				dep['amount']
 				for dep in stats['last_month']['firstdep']
 				if dep['partner_hash'] == partner['partner_hash']
-			])
+			]
+		)
 
 		today_income = sum(
 			[
@@ -382,8 +399,20 @@ async def statistics_callback(call: CallbackQuery):
 		)
 
 		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		other_dates_firstdep = [
+			info for name, info in stats.items() if name == 'firstdep'
+		]
+		others_firstdep = len(
+			[
+				dep['x']
+				for dep in other_dates_firstdep
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+
 		alltime_firstdeps = (
-			today_firstdeps
+			others_firstdep
+			+ today_firstdeps
 			+ yesterday_firstdeps
 			+ last_week_firstdeps
 			+ last_month_firstdeps
@@ -474,40 +503,48 @@ async def statistics_mines_callback(call: CallbackQuery):
 			]
 		)
 
-		today_deps = sum([
+		today_deps = sum(
+			[
 				dep['amount']
 				for dep in stats['today']['firstdep']
 				if dep['game'] == 'Mines'
-			]) + sum(
+			]
+		) + sum(
 			[dep['amount'] for dep in stats['today']['dep'] if dep['game'] == 'Mines']
 		)
-		yesterday_deps = sum([
+		yesterday_deps = sum(
+			[
 				dep['amount']
 				for dep in stats['yesterday']['firstdep']
 				if dep['game'] == 'Mines'
-			]) + sum(
+			]
+		) + sum(
 			[
 				dep['amount']
 				for dep in stats['yesterday']['dep']
 				if dep['game'] == 'Mines'
 			]
 		)
-		last_week_deps = sum([
+		last_week_deps = sum(
+			[
 				dep['amount']
 				for dep in stats['last_week']['firstdep']
 				if dep['game'] == 'Mines'
-			]) + sum(
+			]
+		) + sum(
 			[
 				dep['amount']
 				for dep in stats['last_week']['dep']
 				if dep['game'] == 'Mines'
 			]
 		)
-		last_month_deps = sum([
+		last_month_deps = sum(
+			[
 				dep['amount']
 				for dep in stats['last_month']['firstdep']
 				if dep['game'] == 'Mines'
-			]) + sum(
+			]
+		) + sum(
 			[
 				dep['amount']
 				for dep in stats['last_month']['dep']
@@ -545,8 +582,16 @@ async def statistics_mines_callback(call: CallbackQuery):
 		)
 
 		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		other_dates_firstdep = [
+			info for name, info in stats.items() if name == 'firstdep'
+		]
+		others_firstdep = len(
+			[dep['x'] for dep in other_dates_firstdep if dep['game'] == 'Mines']
+		)
+
 		alltime_firstdeps = (
-			today_firstdeps
+			others_firstdep
+			+ today_firstdeps
 			+ yesterday_firstdeps
 			+ last_week_firstdeps
 			+ last_month_firstdeps
@@ -645,12 +690,14 @@ async def statistics_mines_callback(call: CallbackQuery):
 			]
 		)
 
-		today_deps = sum([
+		today_deps = sum(
+			[
 				dep['amount']
 				for dep in stats['today']['firstdep']
 				if dep['game'] == 'Mines'
 				and dep['partner_hash'] == partner['partner_hash']
-			]) + sum(
+			]
+		) + sum(
 			[
 				dep['amount']
 				for dep in stats['today']['dep']
@@ -658,12 +705,14 @@ async def statistics_mines_callback(call: CallbackQuery):
 				and dep['partner_hash'] == partner['partner_hash']
 			]
 		)
-		yesterday_deps = sum([
+		yesterday_deps = sum(
+			[
 				dep['amount']
 				for dep in stats['yesterday']['firstdep']
 				if dep['game'] == 'Mines'
 				and dep['partner_hash'] == partner['partner_hash']
-			]) + sum(
+			]
+		) + sum(
 			[
 				dep['amount']
 				for dep in stats['yesterday']['dep']
@@ -671,12 +720,14 @@ async def statistics_mines_callback(call: CallbackQuery):
 				and dep['partner_hash'] == partner['partner_hash']
 			]
 		)
-		last_week_deps = sum([
+		last_week_deps = sum(
+			[
 				dep['amount']
 				for dep in stats['last_week']['firstdep']
 				if dep['game'] == 'Mines'
 				and dep['partner_hash'] == partner['partner_hash']
-			]) + sum(
+			]
+		) + sum(
 			[
 				dep['amount']
 				for dep in stats['last_week']['dep']
@@ -684,12 +735,14 @@ async def statistics_mines_callback(call: CallbackQuery):
 				and dep['partner_hash'] == partner['partner_hash']
 			]
 		)
-		last_month_deps = sum([
+		last_month_deps = sum(
+			[
 				dep['amount']
 				for dep in stats['last_month']['firstdep']
 				if dep['game'] == 'Mines'
 				and dep['partner_hash'] == partner['partner_hash']
-			]) + sum(
+			]
+		) + sum(
 			[
 				dep['amount']
 				for dep in stats['last_month']['dep']
@@ -732,8 +785,21 @@ async def statistics_mines_callback(call: CallbackQuery):
 		)
 
 		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		other_dates_firstdep = [
+			info for name, info in stats.items() if name == 'firstdep'
+		]
+		others_firstdep = len(
+			[
+				dep['x']
+				for dep in other_dates_firstdep
+				if dep['partner_hash'] == partner['partner_hash']
+				and dep['game'] == 'Mines'
+			]
+		)
+
 		alltime_firstdeps = (
-			today_firstdeps
+			others_firstdep
+			+ today_firstdeps
 			+ yesterday_firstdeps
 			+ last_week_firstdeps
 			+ last_month_firstdeps
@@ -884,6 +950,7 @@ def check_achievements(
 	first_deposits_count,
 	referrals_count,
 	signals_count,
+	api_count,
 ):
 	achievements = [
 		'🏆️ Ваши достижения:\n',
@@ -896,6 +963,7 @@ def check_achievements(
 		'first_deposits_count': ['0'],
 		'referrals_count': ['0'],
 		'signals_count': ['0'],
+		'api_count': ['0'],
 	}
 
 	for threshold in ACHIEVEMENTS['users']:
@@ -922,6 +990,10 @@ def check_achievements(
 		if signals_count >= threshold:
 			thresholds['signals_count'].append(str(threshold))
 
+	for threshold in ACHIEVEMENTS['signals']:
+		if signals_count >= threshold:
+			thresholds['api_count'].append(str(threshold))
+
 	count = (
 		len(thresholds['users_count'])
 		+ len(thresholds['referrals_count'])
@@ -929,7 +1001,8 @@ def check_achievements(
 		+ len(thresholds['deposits_sum'])
 		+ len(thresholds['income'])
 		+ len(thresholds['first_deposits_count'])
-		- 6
+		+ len(thresholds['api_count'])
+		- 7
 	)
 
 	achievements.append(
@@ -944,6 +1017,7 @@ def check_achievements(
 	achievements.append(
 		f'✅ Сгенерировано сигналов: {",".join(thresholds["signals_count"])}'
 	)
+	achievements.append(f'✅ API: {",".join(thresholds["api_count"])}')
 
 	return achievements
 
@@ -955,6 +1029,7 @@ def check_achievements_for_reload(
 	first_deposits_count,
 	referrals_count,
 	signals_count,
+	api_count,
 ):
 	thresholds = {
 		'users_count': [str(users_count)],
@@ -963,6 +1038,7 @@ def check_achievements_for_reload(
 		'first_deposits_count': [str(first_deposits_count)],
 		'referrals_count': [str(referrals_count)],
 		'signals_count': [str(signals_count)],
+		'api_count': [str(api_count)],
 	}
 
 	for threshold in ACHIEVEMENTS['users']:
@@ -991,14 +1067,20 @@ def check_achievements_for_reload(
 			thresholds['signals_count'].append(str(threshold))
 			break
 
+	for threshold in ACHIEVEMENTS['api']:
+		if api_count < threshold:
+			thresholds['api_count'].append(str(threshold))
+			break
+
 	count = (
 		len(thresholds['users_count'])
+		+ len(thresholds['referrals_count'])
 		+ len(thresholds['signals_count'])
 		+ len(thresholds['deposits_sum'])
 		+ len(thresholds['income'])
 		+ len(thresholds['first_deposits_count'])
-		+ len(thresholds['referrals_count'])
-		- 6
+		+ len(thresholds['api_count'])
+		- 7
 	)
 
 	return {
@@ -1039,6 +1121,8 @@ async def reload_achievs_callback(call: CallbackQuery):
 		f'/base/achstats?partnerhash={partner["partner_hash"]}'
 	)
 
+	api_count = result['api_count']
+
 	cpartners = await APIRequest.post(
 		'/partner/find', {'opts': {'referrer_hash': partner['partner_hash']}}
 	)
@@ -1054,81 +1138,105 @@ async def reload_achievs_callback(call: CallbackQuery):
 		result['first_deposits_count'],
 		len(cpartners),
 		result['signals_count'],
+		api_count,
 	)
 
 	count = achievements['count']
 	thresholds = achievements['thresholds']
 
-	# thresholds_data = {
-	# 	'users_count': ['0'],
-	# 	'deposits_sum': ['0'],
-	# 	'income': ['0'],
-	# 	'first_deposits_count': ['0'],
-	# }
-
 	loaded_achievs = loaded_achievements.get(call.from_user.id, {})
-
-	loaded_achievements[call.from_user.id] = achievements
 
 	loaded_count = loaded_achievs.get('count')
 
-	if loaded_count > count:
+	if count > loaded_count:
 		loaded_thresholds = loaded_achievs['thresholds']
+		loaded_achievements[call.from_user.id] = achievements
 
 		users_count = list(
-			set(loaded_thresholds['users_count']) - set(thresholds['users_count'])
+			set(thresholds['users_count']) - set(loaded_thresholds['users_count'])
 		)
 		deposits_sum = list(
-			set(loaded_thresholds['deposits_sum']) - set(thresholds['deposits_sum'])
+			set(thresholds['deposits_sum']) - set(loaded_thresholds['deposits_sum'])
 		)
-		income = list(set(loaded_thresholds['income']) - set(thresholds['income']))
+		income = list(set(thresholds['income']) - set(loaded_thresholds['income']))
 		first_deposits_count = list(
-			set(loaded_thresholds['first_deposits_count'])
-			- set(thresholds['first_deposits_count'])
+			set(thresholds['first_deposits_count'])
+			- set(loaded_thresholds['first_deposits_count'])
 		)
 		referrals_count = list(
-			set(loaded_thresholds['referrals_count'])
-			- set(thresholds['referrals_count'])
+			set(thresholds['referrals_count'])
+			- set(loaded_thresholds['referrals_count'])
 		)
 		signals_count = list(
-			set(loaded_thresholds['signals_count']) - set(thresholds['signals_count'])
+			set(thresholds['signals_count']) - set(loaded_thresholds['signals_count'])
 		)
+
+		api_count = list(
+			set(thresholds['api_count']) - set(loaded_thresholds['api_count'])
+		)
+
+		achievements_items = {
+			'Пользователи по вашим ссылкам': [],
+			'Депозиты': [],
+			'Доход': [],
+			'Количество первых депозитов': [],
+			'Количество рефералов': [],
+			'Сгенерировано сигналов': [],
+			'API': [],
+		}
+
+		final_messages = []
 
 		if users_count:
 			for data in users_count:
-				await call.message.answer(
-					f'Достижение успешно выполнено.\n\n✅ Пользователи по вашим ссылкам: больше {data}.'
-				)
+				achievements_items['Пользователи по вашим ссылкам'].append(data)
 
 		if deposits_sum:
 			for data in deposits_sum:
-				await call.message.answer(
-					f'Достижение успешно выполнено.\n\n✅ Депозиты: больше {convert_to_human(data)} рублей.'
-				)
+				achievements_items['Депозиты'].append(f'{data} рублей')
 
 		if income:
 			for data in income:
-				await call.message.answer(
-					f'Достижение успешно выполнено.\n\n✅ Доход: больше {convert_to_human(data)} рублей.'
-				)
+				achievements_items['Доход'].append(f'{data} рублей')
 
 		if first_deposits_count:
 			for data in first_deposits_count:
-				await call.message.answer(
-					f'Достижение успешно выполнено.\n\n✅ Количество первых депозитов: больше {data}.'
-				)
+				achievements_items['Количество первых депозитов'].append(data)
 
 		if referrals_count:
 			for data in referrals_count:
-				await call.message.answer(
-					f'Достижение успешно выполнено.\n\n✅ Количество рефералов: больше {data}.'
-				)
+				achievements_items['Количество рефералов'].append(data)
 
 		if signals_count:
 			for data in signals_count:
-				await call.message.answer(
-					f'Достижение успешно выполнено.\n\n✅ Сгенерировано сигналов: больше {data}.'
-				)
+				achievements_items['Сгенерировано сигналов'].append(data)
+
+		if api_count:
+			for data in api_count:
+				achievements_items['API'].append(data)
+
+		count = (
+			len(achievements_items['Пользователи по вашим ссылкам'])
+			+ len(achievements_items['Депозиты'])
+			+ len(achievements_items['Доход'])
+			+ len(achievements_items['Количество первых депозитов'])
+			+ len(achievements_items['Количество рефералов'])
+			+ len(achievements_items['Сгенерировано сигналов'])
+			+ len(achievements_items['API'])
+		)
+
+		if count > 1:
+			final_messages.append('Достижения выполнены успешно\n')
+		else:
+			final_messages.append('Достижение выполнено успешно\n')
+
+		for achiev_name, achiev_data in achievements_items.items():
+			if achiev_data:
+				final_messages.append(f'✅ {achiev_name}: больше {achiev_data}')
+
+		await call.message.answer(
+			'\n'.join(final_messages), reply_markup=inline.create_achiev_get_markup()
+		)
 
 		achievements = check_achievements_var2(
 			data['users_count'],
@@ -1137,14 +1245,14 @@ async def reload_achievs_callback(call: CallbackQuery):
 			result['first_deposits_count'],
 			len(cpartners),
 			result['signals_count'],
+			api_count,
 		)
 
 		data = user_achievements.get(call.from_user.id, {})
-		data['achievements'] = achievements
+		data['achievements'] = {}
 		user_achievements[call.from_user.id] = data
 	else:
 		await call.answer('Вы не выполнили ни одного достижения')
-	# await call.answer("Обновили список достижений", show_alert=True)
 
 
 @default_router.callback_query(F.data.startswith('my_achievs'), only_confirmed)
@@ -1177,6 +1285,8 @@ async def my_achievs_callback(call: CallbackQuery):
 	)
 	cpartners = cpartners[0]['partners']
 
+	api_count = result['api_count']
+
 	opts = {'game': 'Mines', 'referal_parent': partner['partner_hash']}
 	data = await collect_stats(opts)
 
@@ -1187,6 +1297,7 @@ async def my_achievs_callback(call: CallbackQuery):
 		result['first_deposits_count'],
 		len(cpartners),
 		result['signals_count'],
+		api_count,
 	)
 
 	messages += achievements
@@ -1209,6 +1320,7 @@ def check_achievements_var2(
 	first_deposits_count,
 	referrals_count,
 	signals_count,
+	api_count,
 ):
 	achievements = [
 		'🏆️ Ваши Цели:\n',
@@ -1256,6 +1368,13 @@ def check_achievements_var2(
 			achievements.append(f'❌ Сгенерировано сигналов: {threshold}')
 			break
 
+	for threshold in ACHIEVEMENTS['api']:
+		if api_count >= threshold:
+			continue
+		elif api_count < threshold:
+			achievements.append(f'❌ API: {threshold}')
+			break
+
 	return achievements
 
 
@@ -1289,7 +1408,7 @@ async def achievements_callback(call: CallbackQuery):
 		await call.answer('Вы заблокированы')
 		return
 
-	if user_achievements.get(call.from_user.id, {}).get('achievements', []):
+	if user_achievements.get(call.from_user.id, {}).get('achievements', {}):
 		achievements = user_achievements.get(call.from_user.id, {})
 
 		messages += achievements['achievements']
@@ -1299,11 +1418,13 @@ async def achievements_callback(call: CallbackQuery):
 		)
 
 		cpartners = await APIRequest.post(
-			'/partner/find', {'opts': {'referrer_hash': partner['referrer_hash'], "is_referal": True}}
+			'/partner/find', {'opts': {'referrer_hash': partner['partner_hash']}}
 		)
 		cpartners = cpartners[0]['partners']
 
 		logger.error(len(cpartners))
+
+		api_count = result['api_count']
 
 		opts = {'game': 'Mines', 'referal_parent': partner['partner_hash']}
 		data = await collect_stats(opts)
@@ -1315,6 +1436,7 @@ async def achievements_callback(call: CallbackQuery):
 			result['first_deposits_count'],
 			len(cpartners),
 			result['signals_count'],
+			api_count,
 		)
 
 		loaded_achievements[call.from_user.id] = check_achievements_for_reload(
@@ -1324,6 +1446,7 @@ async def achievements_callback(call: CallbackQuery):
 			result['first_deposits_count'],
 			len(cpartners),
 			result['signals_count'],
+			api_count,
 		)
 
 		messages += achievements
@@ -1422,11 +1545,11 @@ async def showmenu_callback(call: CallbackQuery):
 		)
 
 
-@default_router.callback_query(F.data.startswith('admin_'), only_confirmed)
-async def adminpanel_query_callback(call: CallbackQuery):
-	await call.message.edit_text(
-		'ЗАГЛУШКА', reply_markup=inline.create_back_markup('showmenu')
-	)
+# @default_router.callback_query(F.data.startswith('admin_'), only_confirmed)
+# async def adminpanel_query_callback(call: CallbackQuery):
+# 	await call.message.edit_text(
+# 		'ЗАГЛУШКА', reply_markup=inline.create_back_markup('showmenu')
+# 	)
 
 
 @default_router.callback_query(F.data == 'adminpanel')
@@ -1445,6 +1568,42 @@ async def adminpanel_callback(call: CallbackQuery):
 		parse_mode=ParseMode.HTML,
 		reply_markup=inline.create_adminpanel_markup(),
 	)
+
+
+def humanize_place(place: str):
+	if place == 'first_place':
+		return 'первое место'
+	elif place == 'second_place':
+		return 'второе место'
+	elif place == 'third_place':
+		return 'третье место'
+	else:
+		return 'другое место'
+
+
+def get_top_workers_place_description(place: str):
+	# Get top workers place description based on sinwin_data
+	top_workers = sinwin_data.get('top_workers', False)
+
+	if top_workers:
+		place_data = top_workers.get(place, {})
+
+		if place_data['type'] is None:
+			return (
+				f'Пользователь, занявший {humanize_place(place)}, не получает ничего.'
+			)
+
+		# Uplevel workers place description
+		if place_data['type'] == 'uplevel':
+			return f'Пользователь, занявший {humanize_place(place)}, повышается в статусе, если его текущий статус "{place_data["status"]}" или ниже.'
+		elif place_data['type'] == 'prize':
+			return f'Пользователь, занявший {humanize_place(place)}, получает премию {place_data["amount"]} рублей.'
+		else:
+			return (
+				f'Пользователь, занявший {humanize_place(place)}, не получает ничего.'
+			)
+	else:
+		return 'Ошибка при загрузке конфигурации. Обратитесь к администратору.'
 
 
 @default_router.callback_query(F.data == 'top_workers', only_confirmed)
@@ -1479,8 +1638,6 @@ async def top_workers_callback(call: CallbackQuery):
 			await call.answer('Вы заблокированы')
 			return
 
-	print(income)
-
 	for partner in income:
 		partner_hash = partner['partner_hash']
 		if userp == partner_hash:
@@ -1496,11 +1653,10 @@ async def top_workers_callback(call: CallbackQuery):
 		state = list(partners).index(userp) + 1
 
 	messages = [
-		'🏆️ Топ воркеров по доходу за последний месяц',
+		'🏆️ Топ воркеров по доходу за последний месяц\n',
 	]
 
 	for i, (partner_hash, income) in enumerate(partners.items()):
-		messages.append('')
 		partner_hash = partner_hash[:3] + '****' + partner_hash[7:]
 
 		if i == 0:
@@ -1517,11 +1673,15 @@ async def top_workers_callback(call: CallbackQuery):
 	else:
 		messages.append('')
 
+	first_place_desc = get_top_workers_place_description('first_place')
+	second_place_desc = get_top_workers_place_description('second_place')
+	third_place_desc = get_top_workers_place_description('third_place')
+
 	messages += [
 		'📅 Статистика обнуляется 1 числа каждого месяца.\n',
-		'<code>👑 Пользователь, занявший первое место, повышается в статусе, если его текущий статус "Профессионал" или ниже.</code>',
-		'<code>💵 Второе и третье места получают премию.</code>\n\n'
-		'🚀 Удачи в достижении новых высот!',
+		f'<code>👑 {first_place_desc}</code>',
+		f'<code>💵 {second_place_desc}</code>',
+		f'<code>💵 {third_place_desc}</code>\n\n🚀 Удачи в достижении новых высот!',
 	]
 
 	await call.message.edit_text(
@@ -1633,7 +1793,7 @@ def get_status_conditions(
 		statuses = {
 			'income': True if last_month_income >= 150000.0 else False,
 			'total_income': True if alltime_income >= 300000.0 else False,
-			'first_deposits': True if last_month_firstdeps >= 200 else False,
+			'first_deposits': True if last_month_firstdeps >= 2 else False,
 		}
 	elif status == 'профессионал':
 		statuses = {
@@ -1757,8 +1917,18 @@ async def status_levels_callback(call: CallbackQuery):
 		]
 	)
 
+	other_dates_firstdep = [info for name, info in stats.items() if name == 'firstdep']
+	others_firstdep = len(
+		[
+			dep['x']
+			for dep in other_dates_firstdep
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
 	alltime_firstdeps = (
-		today_firstdeps
+		others_firstdep
+		+ today_firstdeps
 		+ yesterday_firstdeps
 		+ last_week_firstdeps
 		+ last_month_firstdeps
@@ -1884,44 +2054,56 @@ async def status_callback(call: CallbackQuery):
 				dep['amount']
 				for dep in stats['today']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]) + sum([
+			]
+		) + sum(
+			[
 				dep['amount']
 				for dep in stats['today']['firstdep']
 				if dep['partner_hash'] == partner['partner_hash']
-			])
-	
+			]
+		)
+
 		yesterday_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['yesterday']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]) + sum([
+			]
+		) + sum(
+			[
 				dep['amount']
 				for dep in stats['yesterday']['firstdep']
 				if dep['partner_hash'] == partner['partner_hash']
-			])
+			]
+		)
 
 		last_week_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['last_week']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]) + sum([
+			]
+		) + sum(
+			[
 				dep['amount']
 				for dep in stats['last_week']['firstdep']
 				if dep['partner_hash'] == partner['partner_hash']
-			])
+			]
+		)
 
 		last_month_deps = sum(
 			[
 				dep['amount']
 				for dep in stats['last_month']['dep']
 				if dep['partner_hash'] == partner['partner_hash']
-			]) + sum([
+			]
+		) + sum(
+			[
 				dep['amount']
 				for dep in stats['last_month']['firstdep']
 				if dep['partner_hash'] == partner['partner_hash']
-			])
+			]
+		)
 
 		today_income = sum(
 			[
@@ -1959,13 +2141,43 @@ async def status_callback(call: CallbackQuery):
 				if dep['partner_hash'] == partner['partner_hash']
 			]
 		)
+		other_dates_dep = [info for name, info in stats.items() if name == 'dep']
+		others_dep = sum(
+			[
+				dep['x']
+				for dep in other_dates_dep
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
 
-		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		other_dates_firstdep = [
+			info for name, info in stats.items() if name == 'firstdep'
+		]
+		others_firstdep = len(
+			[
+				dep['x']
+				for dep in other_dates_firstdep
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+
 		alltime_firstdeps = (
-			today_firstdeps
+			others_firstdep
+			+ today_firstdeps
 			+ yesterday_firstdeps
 			+ last_week_firstdeps
 			+ last_month_firstdeps
+		)
+
+		last_month_firstdeps = (
+			last_month_firstdeps
+			+ last_week_firstdeps
+			+ yesterday_firstdeps
+			+ today_firstdeps
+		)
+
+		alltime_deps = (
+			today_deps + yesterday_deps + last_week_deps + last_month_deps + others_dep
 		)
 		alltime_income = (
 			today_income
@@ -1976,16 +2188,21 @@ async def status_callback(call: CallbackQuery):
 		)
 
 		signals_gens = sum(
-			[info[partner['partner_hash']] for _, info in result['signals'].items()]
+			[
+				info.get(partner['partner_hash'], 0)
+				for _, info in result['signals'].items()
+			]
 		)
 
-		last_month_income = today_income + yesterday_income + last_week_income + last_month_income
+		last_month_income = (
+			today_income + yesterday_income + last_week_income + last_month_income
+		)
 
 		last_month_income_str = '{:,}'.format(last_month_income).replace(',', ' ')
 		alltime_income_str = '{:,}'.format(alltime_income).replace(',', ' ')
 
 		statuses, may_up = get_status_conditions(
-			partner['status'], last_month_income, alltime_income, alltime_firstdeps
+			partner['status'], last_month_income, alltime_income, last_month_firstdeps
 		)
 
 		statuses_conditions = {
@@ -2026,26 +2243,35 @@ async def status_callback(call: CallbackQuery):
 			'Если у вас есть вопросы, напишите в поддержку',
 		]
 
+		logger.debug(partner)
+
 		if partner['status'] == 'специалист' and partner['is_referal'] and may_up:
-			cpartners = await APIRequest.post(
+			crpartners = await APIRequest.post(
 				'/partner/find', {'opts': {'partner_hash': partner['referrer_hash']}}
 			)
-			cpartner = cpartners[0]['partners'][-1]
+			logger.debug(f'partner: {partner} result: {crpartners}')
+			crpartner = crpartners[0]['partners']
 
-			cpartner['ref_income'] += 15000.0
-			cpartner['balance'] += 15000.0
+			if crpartner:
+				crpartner[-1]
+			else:
+				await call.answer('Возникла ошибка получения реферрера')
+				return
 
-			await APIRequest.post('/partner/update', {**cpartner})
+			crpartner['ref_income'] += 15000.0
+			crpartner['balance'] += 15000.0
+
+			await APIRequest.post('/partner/update', {**crpartner})
 
 			await bot.send_message(
-				chat_id=cpartner['tg_id'],
+				chat_id=crpartner['tg_id'],
 				text=f'Ваш реферал #{call.from_user.id} перешел на статус “Профессионал 45%”\nВам зачислено на баланс 15 000 рублей',
 			)
 
 			for admin in config.secrets.ADMINS_IDS:
 				await bot.send_message(
 					chat_id=admin,
-					text=f'Пользователь {call.from_user.username if call.from_user.username is not None else call.from_user.id} перешел со статуса “Специалист 40 %” на статус “Профессионал 45 %”\nПользователь {cpartner["username"] if cpartner["username"] else cpartner["tg_id"]} получил 15 00 рублей',
+					text=f'Пользователь {call.from_user.username if call.from_user.username is not None else call.from_user.id} перешел со статуса “Специалист 40 %” на статус “Профессионал 45 %”\nПользователь {cpartner["partner_hash"]} получил 15 00 рублей',
 				)
 
 		if may_up and partner['status'] == 'профессионал':
@@ -2361,44 +2587,52 @@ async def change_status_moving_callback(call: CallbackQuery):
 		]
 	)
 
-	today_deps = sum([
+	today_deps = sum(
+		[
 			dep['amount']
 			for dep in stats['today']['firstdep']
 			if dep['partner_hash'] == partner['partner_hash']
-		]) + sum(
+		]
+	) + sum(
 		[
 			dep['amount']
 			for dep in stats['today']['dep']
 			if dep['partner_hash'] == partner['partner_hash']
 		]
 	)
-	yesterday_deps = sum([
+	yesterday_deps = sum(
+		[
 			dep['amount']
 			for dep in stats['yesterday']['firstdep']
 			if dep['partner_hash'] == partner['partner_hash']
-		]) + sum(
+		]
+	) + sum(
 		[
 			dep['amount']
 			for dep in stats['yesterday']['dep']
 			if dep['partner_hash'] == partner['partner_hash']
 		]
 	)
-	last_week_deps = sum([
+	last_week_deps = sum(
+		[
 			dep['amount']
 			for dep in stats['last_week']['firstdep']
 			if dep['partner_hash'] == partner['partner_hash']
-		]) + sum(
+		]
+	) + sum(
 		[
 			dep['amount']
 			for dep in stats['last_week']['dep']
 			if dep['partner_hash'] == partner['partner_hash']
 		]
 	)
-	last_month_deps = sum([
+	last_month_deps = sum(
+		[
 			dep['amount']
 			for dep in stats['last_month']['firstdep']
 			if dep['partner_hash'] == partner['partner_hash']
-		]) + sum(
+		]
+	) + sum(
 		[
 			dep['amount']
 			for dep in stats['last_month']['dep']
@@ -2444,8 +2678,18 @@ async def change_status_moving_callback(call: CallbackQuery):
 	)
 
 	alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+	other_dates_firstdep = [info for name, info in stats.items() if name == 'firstdep']
+	others_firstdep = len(
+		[
+			dep['x']
+			for dep in other_dates_firstdep
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
 	alltime_firstdeps = (
-		today_firstdeps
+		others_firstdep
+		+ today_firstdeps
 		+ yesterday_firstdeps
 		+ last_week_firstdeps
 		+ last_month_firstdeps
@@ -2615,7 +2859,7 @@ async def profile_callback(call: CallbackQuery):
 	days_difference = max(difference.days, 1)
 
 	cpartners = await APIRequest.post(
-		'/partner/find', {'opts': {'referrer_hash': partner['referrer_hash'], "is_referal": True}}
+		'/partner/find', {'opts': {'referrer_hash': partner['partner_hash']}}
 	)
 	cpartners = cpartners[0]['partners']
 

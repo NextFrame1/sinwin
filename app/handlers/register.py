@@ -7,8 +7,7 @@ from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import (CallbackQuery, ContentType, Message,
-                           ReplyKeyboardRemove)
+from aiogram.types import CallbackQuery, ContentType, Message, ReplyKeyboardRemove
 from loguru import logger
 
 import app.keyboards.inline as inline
@@ -74,7 +73,7 @@ async def cmd_start(message: Message):
 
 	referals[message.from_user.id] = {
 		'is_referal': is_referal,
-		'referrer_hash': referrer_id
+		'referrer_hash': referrer_id,
 	}
 
 	if users.get(message.from_user.id, None) is None:
@@ -364,9 +363,13 @@ async def approve_user(call: CallbackQuery):
 			'number_phone': str(data.get('number_phone')),
 			'fullname': ' '.join(data.get('name').split(' ')[:-1]),
 			'username': str(data.get('username')),
-			"is_referal": referals[tid]['is_referal'],
-			"referrer_hash": referals[tid]['referrer_hash'] if referals[tid]['referrer_hash'] else None,
-			"status": "специалист" if referals[tid]['is_referal'] else 'новичок',
+			'is_referal': referals[tid]['is_referal'],
+			'referrer_hash': (
+				referals[tid]['referrer_hash']
+				if referals[tid]['referrer_hash']
+				else None
+			),
+			'status': 'специалист' if referals[tid]['is_referal'] else 'новичок',
 			'approved': True,
 			'balance': 100000.0,  # TODO: REMOVE THIS IN PROD
 			'arbitration_experience': 1 if data.get('experience_status') == 'Да' else 0,
@@ -381,37 +384,51 @@ async def approve_user(call: CallbackQuery):
 
 		result, status_code = await APIRequest.post('/partner/create', data_creation)
 
-		thispartner, status = await APIRequest.post('/partner/find', {'opts': {'tg_id': tid}})
+		thispartner, status = await APIRequest.post(
+			'/partner/find', {'opts': {'tg_id': tid}}
+		)
 		thispartner = thispartner['partners'][-1]
 
 		if referals[tid]['is_referal']:
-			rpartners = await APIRequest.post('/partner/find', {'opts': {'partner_hash': referals[tid]['referrer_hash']}})
+			rpartners = await APIRequest.post(
+				'/partner/find',
+				{'opts': {'partner_hash': referals[tid]['referrer_hash']}},
+			)
 			rpartner = rpartners[0]['partners']
 
-			cpartners = await APIRequest.post('/partner/find', {'opts': {'referrer_hash': referals[tid]['referrer_hash']}})
+			cpartners = await APIRequest.post(
+				'/partner/find',
+				{'opts': {'referrer_hash': referals[tid]['referrer_hash']}},
+			)
 			cpartners = cpartners[0]['partners']
 			cpartner = cpartners[-1]
 
-			if cpartner["partner_hash"] == referals[tid]['referrer_hash']:
-				cpartner["is_referal"] = False
-				await APIRequest.post("/partner/update", {**cpartner})
+			if cpartner['partner_hash'] == referals[tid]['referrer_hash']:
+				cpartner['is_referal'] = False
+				await APIRequest.post('/partner/update', {**cpartner})
 				return
 
 			if rpartner:
 				rpartner = rpartner[-1]
-				await bot.send_message(chat_id=rpartner['tg_id'], text=f'У вас новый реферал: #{tid}\nВсего рефералов: {len(cpartners)}')
+				await bot.send_message(
+					chat_id=rpartner['tg_id'],
+					text=f'У вас новый реферал: #{tid}\nВсего рефералов: {len(cpartners)}',
+				)
 
 				for admin in config.secrets.ADMINS_IDS:
-					await bot.send_message(chat_id=admin, text=f'''
-Пригласил Tg id: {rpartner["tg_id"]}
-Ник: {rpartner["username"]}
-Хэш: {rpartner["partner_hash"]}
-Реферал: {rpartner["is_referal"]}
+					await bot.send_message(
+						chat_id=admin,
+						text=f"""
+Пригласил Tg id: {rpartner['tg_id']}
+Ник: {rpartner['username']}
+Хэш: {rpartner['partner_hash']}
+Реферал: {rpartner['is_referal']}
 
-Присоединился Tg id: {thispartner["tg_id"]}
-Ник: {thispartner["username"]}
-Хэш: {thispartner["partner_hash"]}
-Реферал: Да''')
+Присоединился Tg id: {thispartner['tg_id']}
+Ник: {thispartner['username']}
+Хэш: {thispartner['partner_hash']}
+Реферал: Да""",
+					)
 
 		users[tid]['final'] = True
 
@@ -516,7 +533,10 @@ async def send_request_callback(call: CallbackQuery):
 		else f'<a href="tg://user?id={call.from_user.id}">{call.from_user.first_name}</a>'
 	)
 
-	rpartners = await APIRequest.post('/partner/find', {'opts': {'partner_hash': referals[call.from_user.id]['referrer_hash']}})
+	rpartners = await APIRequest.post(
+		'/partner/find',
+		{'opts': {'partner_hash': referals[call.from_user.id]['referrer_hash']}},
+	)
 	rpartner = rpartners[0]['partners']
 
 	pusers = await APIRequest.post('/user/find', {'opts': {'tg_id': call.from_user.id}})
