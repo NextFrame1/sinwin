@@ -19,6 +19,7 @@ from app.loader import (
 	bot,
 	config,
 	convert_to_human,
+	humanize_place,
 	loaded_achievements,
 	scheduler,
 	sinwin_data,
@@ -1570,20 +1571,9 @@ async def adminpanel_callback(call: CallbackQuery):
 	)
 
 
-def humanize_place(place: str):
-	if place == 'first_place':
-		return 'первое место'
-	elif place == 'second_place':
-		return 'второе место'
-	elif place == 'third_place':
-		return 'третье место'
-	else:
-		return 'другое место'
-
-
 def get_top_workers_place_description(place: str):
 	# Get top workers place description based on sinwin_data
-	top_workers = sinwin_data.get('top_workers', False)
+	top_workers = sinwin_data.get('topworkers', False)
 
 	if top_workers:
 		place_data = top_workers.get(place, {})
@@ -2014,6 +2004,10 @@ async def status_callback(call: CallbackQuery):
 			await call.answer('Доступ запрещен')
 			return
 
+		if partner['status'] == 'легенда':
+			await call.answer('Вы уже получили максимальный статус.')
+			return
+
 		opts = {'referal_parent': partner['partner_hash']}
 
 		data = await collect_stats(opts)
@@ -2271,7 +2265,7 @@ async def status_callback(call: CallbackQuery):
 			for admin in config.secrets.ADMINS_IDS:
 				await bot.send_message(
 					chat_id=admin,
-					text=f'Пользователь {call.from_user.username if call.from_user.username is not None else call.from_user.id} перешел со статуса “Специалист 40 %” на статус “Профессионал 45 %”\nПользователь {cpartner["partner_hash"]} получил 15 00 рублей',
+					text=f'Пользователь {call.from_user.username if call.from_user.username is not None else call.from_user.id} перешел со статуса “Специалист 40 %” на статус “Профессионал 45 %”\nПользователь {crpartner["partner_hash"]} получил 15 000 рублей',
 				)
 
 		if may_up and partner['status'] == 'профессионал':

@@ -1,13 +1,328 @@
+import random
+import string
 from collections import Counter
+from datetime import datetime
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery
+from aiogram.enums import ParseMode
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import CallbackQuery, Message
 
 import app.keyboards.admin_inline as inline
 from app.api import APIRequest
-from app.loader import save_data, sinwin_data
+from app.loader import humanize_place, humanize_promocode_type, save_data, sinwin_data
 
 admin_router = Router()
+
+deleted_promocodes = {}
+
+
+def generate_random_promocode() -> str:
+	length = 16
+	characters = string.ascii_letters + string.digits  # Содержит буквы и цифры
+	promocode = ''.join(random.choice(characters) for _ in range(length))
+
+	while promocode in sinwin_data['promocodes']:
+		promocode = ''.join(random.choice(characters) for _ in range(length))
+
+	return promocode
+
+
+class CreateRublesPromocodeGroup(StatesGroup):
+	promocode_name = State()
+
+
+class CreateStatusPromocodeGroup(StatesGroup):
+	promocode_name = State()
+
+
+class CreatePercentPromocodeGroup(StatesGroup):
+	promocode_name = State()
+
+
+################################################################################
+################################### Промокоды ##################################
+################################################################################
+
+
+@admin_router.callback_query(F.data == 'admin_promocodes')
+async def admin_promocodes_callback(call: CallbackQuery):
+	await call.answer.edit_text(
+		"""
+Выберете на что вы хотите создать промокод?
+
+Промокод на:
+1) Рубли
+2) Статус
+3) Прибавить процент
+""",
+		reply_markup=inline.create_admin_promocodes_markup(),
+	)
+
+
+@admin_router.callback_query(F.data == 'create_promocode_rubles')
+async def create_promocode_rub_callback(call: CallbackQuery, state: FSMContext):
+	await call.message.edit_text(
+		"""
+Напишите: Название / на какую сумму хотите создать промокод / на какое количество использований
+
+Название <code>Random</code> - случайное название
+
+Пример: FREE 5000 1
+
+Промокод FREE, на 5000 рублей, 1 активация
+""",
+		reply_markup=inline.create_admin_promocode_markup(),
+		parse_mode=ParseMode.HTML,
+	)
+	await state.set_state(CreateRublesPromocodeGroup.promocode_name)
+
+
+@admin_router.callback_query(F.data == 'create_promocode_status')
+async def create_promocode_status_callback(call: CallbackQuery, state: FSMContext):
+	await call.message.edit_text(
+		"""
+Напишите на какой статус хотите создать промокод
+
+1. Новичок 35 %
+2. Специалист 40 %
+3. Профессионал 45 %
+4. Мастер 50 %
+5. Легенда Суб Партнерство
+
+6. Переход на следующий статус до Специалист 40 %
+7. Переход на следующий статус до Профессионал 45 %
+8. Переход на следующий статус до Мастер 50 %
+
+Если статус пользователя совпадает с промокодом, бот НЕ присваивает ему новый статус. (моно шрифтом)
+
+Напишите: Название / Номер промокода / количество использований
+
+Название <code>Random</code> - случайное название
+
+Пример: FREE 1 1
+Промокод FREE, на статус Новичок 35 % , 1 активация
+""",
+		reply_markup=inline.create_admin_promocode_markup(),
+		parse_mode=ParseMode.HTML,
+	)
+	await state.set_state(CreateStatusPromocodeGroup.promocode_name)
+
+
+def get_status_by_digit(status: str):
+	status = int(status)
+
+	if status == 1:
+		return 'новичок'
+	elif status == 2:
+		return 'специалист'
+	elif status == 3:
+		return 'профессионал'
+	elif status == 4:
+		return 'мастер'
+	elif status == 5:
+		return 'легенда'
+	elif status == 7:
+		return 'специалист'
+	elif status == 8:
+		return 'профессионал'
+
+
+@admin_router.message(F.text, CreateStatusPromocodeGroup.promocode_name)
+async def create_promocode_status_by_name(message: Message, state: FSMContext):
+	await state.update_data(promocode_name=message.text)
+	data = message.text.split(' ')
+
+	if len(data) < 3:
+		await message.answer(
+			'❌Введено в неправильном формате',
+			reply_markup=inline.create_back_markup('admin_promocodes'),
+		)
+		return
+
+	if data[0] in sinwin_data['promocodes']:
+		await message.answer(
+			'❌Такой промокод уже существует',
+			reply_markup=inline.create_back_markup('admin_promocodes'),
+		)
+		return
+
+	if not data[1].isdigit():
+		await message.answer(
+			'❌Введено в неправильном формате',
+			reply_markup=inline.create_back_markup('admin_promocodes'),
+		)
+		return
+	else:
+		if int(data[1]) > 8:
+			await message.answer(
+				'❌Введено в неправильном формате',
+				reply_markup=inline.create_back_markup('admin_promocodes'),
+			)
+			return
+
+	if not data[2].isdigit():
+		await message.answer(
+			'❌Введено в неправильном формате',
+			reply_markup=inline.create_back_markup('admin_promocodes'),
+		)
+		return
+
+	if data[0] == 'Random':
+		name = generate_random_promocode()
+	else:
+		name = data[0]
+
+	status = get_status_by_digit(data[1])
+
+	date = datetime.now()
+	promocode = {
+		'type': 'status',
+		'date': date,
+		'activates': data[2],
+		'activated_count': data[2],
+	}
+
+	status_type = 'uplevel' if data[1] not in ['6', '7', '8'] else 'status'
+
+	promocode[status_type] = status
+
+	sinwin_data['promocodes'][name] = promocode
+
+	save_data()
+
+	await message.answer(
+		f"""✅Промокод создан: {date.strftime('%d.%m.%Y %H:%M:%S')}
+
+Промокод: <code>{name}</code>
+Количество активаций: {data[2]}
+Осталось активации: {data[2]}
+Промокод на: {'Повышение статуса' if status_type == 'uplevel' else 'Статус'}""",
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.delete_promocode_markup(name),
+	)
+
+	await state.clear()
+
+
+@admin_router.message(F.text, CreateRublesPromocodeGroup.promocode_name)
+async def create_promocode_rubles_by_name(message: Message, state: FSMContext):
+	await state.update_data(promocode_name=message.text)
+	data = message.text.split(' ')
+
+	if len(data) < 3:
+		await message.answer(
+			'❌Введено в неправильном формате',
+			reply_markup=inline.create_back_markup('admin_promocodes'),
+		)
+		return
+
+	if data[0] in sinwin_data['promocodes']:
+		await message.answer(
+			'❌Такой промокод уже существует',
+			reply_markup=inline.create_back_markup('admin_promocodes'),
+		)
+		return
+
+	if not data[1].isdigit():
+		await message.answer(
+			'❌Введено в неправильном формате',
+			reply_markup=inline.create_back_markup('admin_promocodes'),
+		)
+		return
+
+	if not data[2].isdigit():
+		await message.answer(
+			'❌Введено в неправильном формате',
+			reply_markup=inline.create_back_markup('admin_promocodes'),
+		)
+		return
+
+	if data[0] == 'Random':
+		name = generate_random_promocode()
+	else:
+		name = data[0]
+
+	date = datetime.now()
+	promocode = {
+		'type': 'prize',
+		'amount': float(data[1]),
+		'date': date,
+		'activates': data[2],
+		'activated_count': data[2],
+	}
+
+	sinwin_data['promocodes'][name] = promocode
+
+	save_data()
+
+	await message.answer(
+		f"""✅Промокод создан: {date.strftime('%d.%m.%Y %H:%M:%S')}
+
+Промокод: <code>{name}</code>
+Количество активаций: {data[2]}
+Осталось активации: {data[2]}
+Промокод на: Рубли""",
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.delete_promocode_markup(name),
+	)
+
+	await state.clear()
+
+
+@admin_router.callback_query(F.data.startswith('delete_promocode_'))
+async def delete_promocode_by_name(call: CallbackQuery):
+	promocode_name = call.data.split('_')[1]
+
+	promocode = sinwin_data['promocodes'].get(promocode_name, False)
+
+	if not promocode:
+		await call.answer(f'Промокод "{promocode_name}" не найден')
+		return
+
+	try:
+		del sinwin_data['promocodes'][promocode_name]
+	except Exception as ex:
+		await call.answer(
+			f'Ошибка при удалении промокода "{promocode_name}": {str(ex)}'
+		)
+		return
+
+	save_data()
+
+	await call.message.answer(
+		f"""
+❌ Промокод УДАЛЕН
+Промокод: <code>{promocode_name}</code>
+Промокод на: {humanize_promocode_type(promocode['type'])}
+""",
+		reply_markup=inline.create_deleted_markup(),
+	)
+
+
+@admin_router.callback_query(F.data == 'show_created_promocodes')
+async def show_created_promocodes_callback(call: CallbackQuery):
+	promocodes = sinwin_data['promocodes']
+
+	for promocode_name, promocode in promocodes.items():
+		await call.message.answer(
+			f"""
+✅Промокод создан: {promocode['date'].strftime('%d.%m.%Y %H:%M:%S')}
+
+Промокод: <code>{promocode_name}</code>
+Количество активаций: {promocode['activates']}
+Осталось активации: {promocode['activations_left']}
+Промокод на: {humanize_promocode_type(promocode['type'])}	
+""",
+			parse_mode=ParseMode.HTML,
+			reply_markup=inline.delete_promocode_markup(promocode_name),
+		)
+
+
+################################################################################
+################################# Топ воркеров #################################
+################################################################################
 
 
 @admin_router.callback_query(F.data == 'admin_top_workers')
@@ -22,11 +337,11 @@ async def admin_top_workers_callback(call: CallbackQuery):
 		+ stats['yesterday']['income']
 	)
 	other_dates_income = [info for name, info in stats.items() if name == 'income']
-	others_income = sum([dep['x'] for dep in other_dates_income])
+	others_income = [dep for dep in other_dates_income]
 	alltime_income = income_last_month + others_income
 
-	partners_last_month = []
-	partners_alltime = []
+	partners_last_month = {}
+	partners_alltime = {}
 
 	# Last Month
 	for partner in income_last_month:
@@ -108,7 +423,7 @@ async def admin_top_workers_by_deps_callback(call: CallbackQuery):
 		+ stats['yesterday']['dep']
 	)
 	other_dates_deps = [info for name, info in stats.items() if name == 'dep']
-	others_deps = sum([dep['amount'] for dep in other_dates_deps])
+	others_deps = [dep for dep in other_dates_deps]
 
 	firstdeps_last_month = (
 		stats['last_month']['firstdep']
@@ -117,15 +432,15 @@ async def admin_top_workers_by_deps_callback(call: CallbackQuery):
 		+ stats['yesterday']['firstdep']
 	)
 	other_dates_firstdeps = [info for name, info in stats.items() if name == 'firstdep']
-	others_firstdeps = sum([firstdep['amount'] for firstdep in other_dates_firstdeps])
+	others_firstdeps = [firstdep for firstdep in other_dates_firstdeps]
 
 	alltime_deps = (
 		deps_last_month + others_deps + firstdeps_last_month + others_firstdeps
 	)
 	last_month_deps = deps_last_month + firstdeps_last_month
 
-	partners_last_month = []
-	partners_alltime = []
+	partners_last_month = {}
+	partners_alltime = {}
 
 	# Last Month
 	for partner in last_month_deps:
@@ -286,6 +601,9 @@ async def admin_top_workers_by_users_callback(call: CallbackQuery):
 				f'🏅 {partner_hash}: {count} пользователей'
 			)
 
+	partners_last_month_messages = '\n'.join(partners_last_month_messages)
+	partners_alltime_messages = '\n'.join(partners_alltime_messages)
+
 	await call.message.edit_text(
 		f"""🏆 Топ воркеров по приглашенным пользователям за последний месяц
 
@@ -352,13 +670,14 @@ async def admin_place_set_type_to_place_callback(call: CallbackQuery):
 	data_place = {}
 
 	if place_type.isdigit():
-		data_place['place_type'] = 'prize'
+		data_place['type'] = 'prize'
 		data_place['amount'] = int(place_type)
 	else:
-		data_place['place_type'] = 'uplevel'
+		data_place['type'] = 'uplevel'
 		data_place['status'] = place_type
 
-	data = sinwin_data['topworkers'][place] = place_type
+	sinwin_data['topworkers'][place] = data_place
+	data = sinwin_data['topworkers']
 
 	if data['first_place']['type'] is not None:
 		firstplace = (
@@ -386,6 +705,8 @@ async def admin_place_set_type_to_place_callback(call: CallbackQuery):
 		)
 	else:
 		thirdplace = 'Ничего'
+
+	save_data()
 
 	message = f"""Статистика обнуляется 1 числа каждого месяца
 
@@ -412,13 +733,15 @@ async def change_bonus_for_place_num_callback(call: CallbackQuery):
 	elif place == '3':
 		place = 'third_place'
 
-	data = sinwin_data['topworkers'] = {
-		'first_place': {'type': None, 'amount': 0},
-		'second_place': {'type': None, 'amount': 0},
-		'third_place': {'type': None, 'amount': 0},
-	}
+	# sinwin_data['topworkers'] = {
+	# 	'first_place': {'type': None, 'amount': 0},
+	# 	'second_place': {'type': None, 'amount': 0},
+	# 	'third_place': {'type': None, 'amount': 0},
+	# }
 
-	save_data()
+	# save_data()
+
+	data = sinwin_data['topworkers']
 
 	if data['first_place']['type'] is not None:
 		firstplace = (
@@ -448,7 +771,7 @@ async def change_bonus_for_place_num_callback(call: CallbackQuery):
 		thirdplace = 'Ничего'
 
 	await call.message.edit_text(
-		f"""Выберете что хотите давать за {place} место (сейчас: {firstplace})
+		f"""Выберете что хотите давать за {humanize_place(place)} место (сейчас: {firstplace})
 
 Второе место - {secondplace}
 Третье место - {thirdplace}""",

@@ -312,6 +312,7 @@ async def main():
 
 	dp.include_routers(handlers.register_router)
 	dp.include_routers(handlers.default_router)
+	dp.include_routers(handlers.admin_router)
 
 	scheduler.add_job(achievs_alerts, 'cron', hour=12, minute=0)
 

@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
@@ -25,13 +26,46 @@ DEFAULT_DATA = {
 			'type': 'prize',
 			'amount': 10_000.0,
 		},
-	}
+	},
+	'promocodes': {
+		'MANYMONEY_DEV': {
+			'type': 'prize',
+			'amount': 1_000.0,
+			'date': datetime.now(),
+			'activates': 10000,
+			'activated_count': 10000,
+		}
+	},
 }
+
+
+def humanize_promocode_type(promocode_type: str):
+	if promocode_type == 'prize':
+		return 'Рубли'
+	elif promocode_type == 'status':
+		return 'Статус'
+	elif promocode_type == 'uplevel':
+		return 'Переход на следующий статус'
+	elif promocode_type == 'percent':
+		return 'Проценты'
+
+	return 'Неизвестно'
+
+
+def humanize_place(place: str):
+	if place == 'first_place':
+		return 'первое место'
+	elif place == 'second_place':
+		return 'второе место'
+	elif place == 'third_place':
+		return 'третье место'
+	else:
+		return 'другое место'
 
 
 def validate_data(data: dict):
 	count = 0
-	topworkers = data.get('topworkers')
+	topworkers = data.get('topworkers', {})
 
 	if topworkers.get('first_place', False):
 		count += 1
@@ -40,7 +74,12 @@ def validate_data(data: dict):
 	if topworkers.get('third_place', False):
 		count += 1
 
-	if count != 3:
+	promocodes = data.get('promocodes', None)
+
+	if promocodes is not None:
+		count += 1
+
+	if count != 4:
 		raise Exception(
 			'Fatal Error: Invalid data in data.json file. Please, check and fix it.'
 		)

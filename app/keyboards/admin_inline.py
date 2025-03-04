@@ -2,6 +2,56 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
+def create_admin_promocode_markup():
+	keyboard = [
+		[
+			InlineKeyboardButton(
+				text='Созданные промокоды', callback_data='show_created_promocodes'
+			),
+		],
+		[InlineKeyboardButton(text='🔙 Назад', callback_data='admin_promocodes')],
+	]
+
+	return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def create_deleted_markup():
+	pass
+
+
+def delete_promocode_markup(promocode_name):
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(
+			text='Удалить', callback_data=f'delete_promocode_{promocode_name}'
+		)
+	)
+	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='admin_promocodes'))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_admin_promocodes_markup():
+	keyboard = [
+		[
+			InlineKeyboardButton(text='1', callback_data='create_promocode_rubles'),
+			InlineKeyboardButton(text='2', callback_data='create_promocode_status'),
+			InlineKeyboardButton(text='3', callback_data='create_promocode_percent'),
+		],
+		[
+			InlineKeyboardButton(
+				text='Созданные промокоды', callback_data='show_created_promocodes'
+			),
+		],
+		[InlineKeyboardButton(text='🔙 Назад', callback_data='adminpanel')],
+	]
+
+	return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
 def back_markup(callback: str = 'adminpanel'):
 	builder = InlineKeyboardBuilder()
 
@@ -63,19 +113,19 @@ def get_change_places_bonus(place: str):
 	builder.row(
 		InlineKeyboardButton(
 			text='Следующий статус до Специалист 40 %',
-			callback_data=f'admin_place_set_type_to_specialist.{place}',
+			callback_data=f'admin_place_set_type_to_специалист.{place}',
 		)
 	)
 	builder.row(
 		InlineKeyboardButton(
 			text='Следующий статус до Профессионал 45 %',
-			callback_data=f'admin_place_set_type_to_professional.{place}',
+			callback_data=f'admin_place_set_type_to_профессионал.{place}',
 		)
 	)
 	builder.row(
 		InlineKeyboardButton(
 			text='Следующий статус до Мастер 50 %',
-			callback_data=f'admin_place_set_type_to_master.{place}',
+			callback_data=f'admin_place_set_type_to_мастер.{place}',
 		)
 	)
 
