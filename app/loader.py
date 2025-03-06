@@ -31,9 +31,9 @@ DEFAULT_DATA = {
 		'MANYMONEY_DEV': {
 			'type': 'prize',
 			'amount': 1_000.0,
-			'date': datetime.now(),
+			'date': datetime.now().strftime('%d.%m.%Y %H:%M:%S'),
 			'activates': 10000,
-			'activated_count': 10000,
+			'activations_left': 10000,
 		}
 	},
 }

@@ -2,15 +2,17 @@ import random
 import string
 from collections import Counter
 from datetime import datetime
-
+import pandas as pd
+from typing import List, Dict, Any
 from aiogram import F, Router
 from aiogram.enums import ParseMode
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
-
+from aiogram.types import FSInputFile, URLInputFile, BufferedInputFile
 import app.keyboards.admin_inline as inline
 from app.api import APIRequest
+
 from app.loader import humanize_place, humanize_promocode_type, save_data, sinwin_data
 
 admin_router = Router()
@@ -29,6 +31,16 @@ def generate_random_promocode() -> str:
 	return promocode
 
 
+def generate_excel_file(data: List[Dict[str, Any]]):
+	df = pd.DataFrame.from_dict(data)
+
+	# Сохраняем DataFrame в Excel-файл
+	file_name = f'{datetime.now().strftime("%Y%m%d%H%M%S")}_output.xlsx'
+	df.to_excel(file_name, index=False)
+
+	return file_name
+
+
 class CreateRublesPromocodeGroup(StatesGroup):
 	promocode_name = State()
 
@@ -41,6 +53,237 @@ class CreatePercentPromocodeGroup(StatesGroup):
 	promocode_name = State()
 
 
+@admin_router.callback_query(F.data == 'admin_all_partners_1win')
+async def admin_all_partners_1win_callback(call: CallbackQuery):
+	partners, result = await APIRequest.post('/partner/get', {'index': -1})
+
+	partners = partners['partners']
+
+	partners_message = []
+	total_balance = 0
+	approved_partners = 0
+
+	for i, partner in enumerate(partners):
+		partners_message.append(f'{i + 1}) {partner["tg_id"]}:{partner["username"]}:{partner["partner_hash"]}:{partner["status"]}:{partner["balance"]}')
+		total_balance += partner['balance']
+
+		if partner['approved']:
+			approved_partners += 1
+
+	partners_message = "\n".join(partners_message)
+
+	await call.message.edit_text(f'''
+Количество партнеров: {approved_partners}
+
+Баланс всех пользователей: {total_balance}
+
+tg_id:Ник:Хеш:Статус:Баланс
+{partners_message}
+''', reply_markup=inline.admin_send_partners_excel()),
+
+
+@admin_router.callback_query(F.data == 'send_partners_excel')
+async def send_partners_excel_callback(call: CallbackQuery):
+	await call.message.edit_text('Отправляем Excel-файл с информацией о партнерах... Ожидайте, это может занять некоторое время.', reply_markup=inline.create_back_markup('adminpanel'))
+
+	partners, result = await APIRequest.post('/partner/get', {'index': -1})
+	partners = partners['partners']
+
+	result, code = await APIRequest.get('/base/stats')
+
+	stats = result['data']
+
+	result_data = []
+	
+	for i, partner in enumerate(partners):
+		api_count = result['api_count'].get(partner['partner_hash'], 0)
+
+		today_firstdeps = len(
+			[
+				dep['amount']
+				for dep in stats['today']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+		yesterday_firstdeps = len(
+			[
+				dep['amount']
+				for dep in stats['yesterday']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+		last_week_firstdeps = len(
+			[
+				dep['amount']
+				for dep in stats['last_week']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+		last_month_firstdeps = len(
+			[
+				dep['amount']
+				for dep in stats['last_month']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+
+		today_deps = sum(
+			[
+				dep['amount']
+				for dep in stats['today']['dep']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		) + sum(
+			[
+				dep['amount']
+				for dep in stats['today']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+
+		yesterday_deps = sum(
+			[
+				dep['amount']
+				for dep in stats['yesterday']['dep']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		) + sum(
+			[
+				dep['amount']
+				for dep in stats['yesterday']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+
+		last_week_deps = sum(
+			[
+				dep['amount']
+				for dep in stats['last_week']['dep']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		) + sum(
+			[
+				dep['amount']
+				for dep in stats['last_week']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+		last_month_deps = sum(
+			[
+				dep['amount']
+				for dep in stats['last_month']['dep']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		) + sum(
+			[
+				dep['amount']
+				for dep in stats['last_month']['firstdep']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+
+		today_income = sum(
+			[
+				dep['x']
+				for dep in stats['today']['income']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+		yesterday_income = sum(
+			[
+				dep['x']
+				for dep in stats['yesterday']['income']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+		last_week_income = sum(
+			[
+				dep['x']
+				for dep in stats['last_week']['income']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+		last_month_income = sum(
+			[
+				dep['x']
+				for dep in stats['last_month']['income']
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+
+		alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+		other_dates_firstdep = [
+			info for name, info in stats.items() if name == 'firstdep'
+		]
+		others_firstdep = len(
+			[
+				dep['x']
+				for dep in other_dates_firstdep
+				if dep['partner_hash'] == partner['partner_hash']
+			]
+		)
+
+		alltime_firstdeps = (
+			others_firstdep
+			+ today_firstdeps
+			+ yesterday_firstdeps
+			+ last_week_firstdeps
+			+ last_month_firstdeps
+		)
+		alltime_income = (
+			today_income + yesterday_income + last_week_income + last_month_income
+		)
+
+		signals_gens = sum(
+			[info[partner['partner_hash']] for _, info in result['signals'].items()]
+		)
+
+		result_data.append(
+			{
+				'id': str(partner['id']),
+				'partner_hash': str(partner['partner_hash']),
+				'api_count': str(api_count),
+				'today_firstdeps': str(today_firstdeps),
+				'yesterday_firstdeps': str(yesterday_firstdeps),
+				'last_week_firstdeps': str(last_week_firstdeps),
+				'last_month_firstdeps': str(last_month_firstdeps),
+				'today_deps': str(today_deps),
+				'yesterday_deps': str(yesterday_deps),
+				'last_week_deps': str(last_week_deps),
+				'last_month_deps': str(last_month_deps),
+				'alltime_deps': str(alltime_deps),
+				'alltime_firstdeps': str(alltime_firstdeps),
+				'today_income': str(today_income),
+				'yesterday_income': str(yesterday_income),
+				'last_week_income': str(last_week_income),
+				'last_month_income': str(last_month_income),
+				'alltime_income': str(alltime_income),
+				'signals_gens': str(signals_gens),
+				'tg_id': str(partner['tg_id']),
+                'username': str(partner['username']),
+                'status': str(partner['status']),
+				'additional_percent': str(partner['additional_percent']),
+				'register_date': str(partner['register_date']),
+				'referals_count': str(partner['referals_count']),
+				'ref_income': str(partner['ref_income']),
+				'age': str(partner['ref_income']),
+				'referrer_hash': str(partner['ref_income']),
+				'approved': str(partner['ref_income']),
+				'is_referal': str(partner['is_referal']),
+				'arbitration_experience': str(partner['arbitration_experience']),
+				'fullname': str(partner['fullname']),
+				'number_phone': str(partner['number_phone']),
+				'experience_time': str(partner['experience_time']),
+                'balance': str(partner['balance']),
+			}
+		)
+	
+	filename = generate_excel_file(result_data)
+	
+	efile = FSInputFile(path=filename)
+	await call.message.answer_document(document=efile, caption='Результат в виде Excel-файла', reply_markup=inline.back_markup())
+
+
 ################################################################################
 ################################### Промокоды ##################################
 ################################################################################
@@ -48,7 +291,7 @@ class CreatePercentPromocodeGroup(StatesGroup):
 
 @admin_router.callback_query(F.data == 'admin_promocodes')
 async def admin_promocodes_callback(call: CallbackQuery):
-	await call.answer.edit_text(
+	await call.message.edit_text(
 		"""
 Выберете на что вы хотите создать промокод?
 
@@ -77,6 +320,99 @@ async def create_promocode_rub_callback(call: CallbackQuery, state: FSMContext):
 		parse_mode=ParseMode.HTML,
 	)
 	await state.set_state(CreateRublesPromocodeGroup.promocode_name)
+
+
+@admin_router.callback_query(F.data == 'create_promocode_percent')
+async def create_promocode_percent(call: CallbackQuery, state: FSMContext):
+	await call.message.edit_text("""
+Напишите на сколько процентов хотите сделать промокод?
+
+Напишите: Название / Процент / количество использований
+
+Название <code>Random</code> - случайное название
+
+Пример: FREE 5 1
+Промокод FREE, на прибавку 5 % к заработку, 1 активация
+""", parse_mode=ParseMode.HTML,
+reply_markup=inline.create_admin_promocode_markup(),)
+	await state.set_state(CreatePercentPromocodeGroup.promocode_name)
+
+
+@admin_router.message(F.text, CreatePercentPromocodeGroup.promocode_name)
+async def create_percent_promocode_state(message: Message, state: FSMContext):
+	await state.update_data(promocode_name=message.text)
+	data = message.text.split(' ')
+
+	if len(data) < 3:
+		await message.answer(
+			'❌Введено в неправильном формате',
+			reply_markup=inline.create_back_markup('admin_promocodes'),
+		)
+		await state.set_state(CreatePercentPromocodeGroup.promocode_name)
+		return
+
+	if data[0] in sinwin_data['promocodes']:
+		await message.answer(
+			'❌Такой промокод уже существует',
+			reply_markup=inline.create_back_markup('admin_promocodes'),
+		)
+		await state.set_state(CreatePercentPromocodeGroup.promocode_name)
+		return
+
+	if not data[1].isdigit():
+		await message.answer(
+			'❌Введено в неправильном формате',
+			reply_markup=inline.create_back_markup('admin_promocodes'),
+		)
+		await state.set_state(CreatePercentPromocodeGroup.promocode_name)
+		return
+	else:
+		if int(data[1]) > 99:
+			await message.answer(
+				'❌Введено в неправильном формате',
+				reply_markup=inline.create_back_markup('admin_promocodes'),
+			)
+			await state.set_state(CreatePercentPromocodeGroup.promocode_name)
+			return
+
+	if not data[2].isdigit():
+		await message.answer(
+			'❌Введено в неправильном формате',
+			reply_markup=inline.create_back_markup('admin_promocodes'),
+		)
+		await state.set_state(CreatePercentPromocodeGroup.promocode_name)
+		return
+
+	if data[0] == 'Random':
+		name = generate_random_promocode()
+	else:
+		name = data[0]
+
+	date = datetime.now()
+	promocode = {
+		'type': 'percent',
+		'percent': int(data[1]),
+		'date': date.strftime('%d.%m.%Y %H:%M:%S'),
+		'activates': data[2],
+		'activations_left': int(data[2]),
+	}
+
+	sinwin_data['promocodes'][name] = promocode
+
+	save_data()
+
+	await message.answer(
+		f"""✅Промокод создан: {date.strftime('%d.%m.%Y %H:%M:%S')}
+
+Промокод: <code>{name}</code>
+Количество активаций: {data[2]}
+Осталось активации: {data[2]}
+Промокод на: процент {data[1]}%""",
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.delete_promocode_markup(name),
+	)
+
+	await state.clear()
 
 
 @admin_router.callback_query(F.data == 'create_promocode_status')
@@ -123,10 +459,12 @@ def get_status_by_digit(status: str):
 		return 'мастер'
 	elif status == 5:
 		return 'легенда'
-	elif status == 7:
+	elif status == 6:
 		return 'специалист'
-	elif status == 8:
+	elif status == 7:
 		return 'профессионал'
+	elif status == 8:
+		return 'мастер'
 
 
 @admin_router.message(F.text, CreateStatusPromocodeGroup.promocode_name)
@@ -139,6 +477,7 @@ async def create_promocode_status_by_name(message: Message, state: FSMContext):
 			'❌Введено в неправильном формате',
 			reply_markup=inline.create_back_markup('admin_promocodes'),
 		)
+		await state.set_state(CreateStatusPromocodeGroup.promocode_name)
 		return
 
 	if data[0] in sinwin_data['promocodes']:
@@ -146,6 +485,7 @@ async def create_promocode_status_by_name(message: Message, state: FSMContext):
 			'❌Такой промокод уже существует',
 			reply_markup=inline.create_back_markup('admin_promocodes'),
 		)
+		await state.set_state(CreateStatusPromocodeGroup.promocode_name)
 		return
 
 	if not data[1].isdigit():
@@ -153,6 +493,7 @@ async def create_promocode_status_by_name(message: Message, state: FSMContext):
 			'❌Введено в неправильном формате',
 			reply_markup=inline.create_back_markup('admin_promocodes'),
 		)
+		await state.set_state(CreateStatusPromocodeGroup.promocode_name)
 		return
 	else:
 		if int(data[1]) > 8:
@@ -161,12 +502,14 @@ async def create_promocode_status_by_name(message: Message, state: FSMContext):
 				reply_markup=inline.create_back_markup('admin_promocodes'),
 			)
 			return
+			await state.set_state(CreateStatusPromocodeGroup.promocode_name)
 
 	if not data[2].isdigit():
 		await message.answer(
 			'❌Введено в неправильном формате',
 			reply_markup=inline.create_back_markup('admin_promocodes'),
 		)
+		await state.set_state(CreateStatusPromocodeGroup.promocode_name)
 		return
 
 	if data[0] == 'Random':
@@ -177,16 +520,15 @@ async def create_promocode_status_by_name(message: Message, state: FSMContext):
 	status = get_status_by_digit(data[1])
 
 	date = datetime.now()
+	status_type = 'status' if data[1].strip() in ['6', '7', '8'] else 'uplevel'
 	promocode = {
 		'type': 'status',
-		'date': date,
+		'date': date.strftime('%d.%m.%Y %H:%M:%S'),
+		'status_type': status_type,
+		'data': status.lower(),
 		'activates': data[2],
-		'activated_count': data[2],
+		'activations_left': int(data[2]),
 	}
-
-	status_type = 'uplevel' if data[1] not in ['6', '7', '8'] else 'status'
-
-	promocode[status_type] = status
 
 	sinwin_data['promocodes'][name] = promocode
 
@@ -216,6 +558,7 @@ async def create_promocode_rubles_by_name(message: Message, state: FSMContext):
 			'❌Введено в неправильном формате',
 			reply_markup=inline.create_back_markup('admin_promocodes'),
 		)
+		await state.set_state(CreateRublesPromocodeGroup.promocode_name)
 		return
 
 	if data[0] in sinwin_data['promocodes']:
@@ -223,6 +566,7 @@ async def create_promocode_rubles_by_name(message: Message, state: FSMContext):
 			'❌Такой промокод уже существует',
 			reply_markup=inline.create_back_markup('admin_promocodes'),
 		)
+		await state.set_state(CreateRublesPromocodeGroup.promocode_name)
 		return
 
 	if not data[1].isdigit():
@@ -230,6 +574,7 @@ async def create_promocode_rubles_by_name(message: Message, state: FSMContext):
 			'❌Введено в неправильном формате',
 			reply_markup=inline.create_back_markup('admin_promocodes'),
 		)
+		await state.set_state(CreateRublesPromocodeGroup.promocode_name)
 		return
 
 	if not data[2].isdigit():
@@ -237,6 +582,7 @@ async def create_promocode_rubles_by_name(message: Message, state: FSMContext):
 			'❌Введено в неправильном формате',
 			reply_markup=inline.create_back_markup('admin_promocodes'),
 		)
+		await state.set_state(CreateRublesPromocodeGroup.promocode_name)
 		return
 
 	if data[0] == 'Random':
@@ -248,9 +594,9 @@ async def create_promocode_rubles_by_name(message: Message, state: FSMContext):
 	promocode = {
 		'type': 'prize',
 		'amount': float(data[1]),
-		'date': date,
+		'date': date.strftime('%d.%m.%Y %H:%M:%S'),
 		'activates': data[2],
-		'activated_count': data[2],
+		'activations_left': int(data[2]),
 	}
 
 	sinwin_data['promocodes'][name] = promocode
@@ -271,9 +617,32 @@ async def create_promocode_rubles_by_name(message: Message, state: FSMContext):
 	await state.clear()
 
 
+@admin_router.callback_query(F.data.startswith('reborn_promocode_'))
+async def reborn_promocode_by_name_callback(call: CallbackQuery):
+	promocode_name = call.data.split('_')[1]
+
+	promocode = deleted_promocodes.get(promocode_name, False)
+	date = promocode.get('date', datetime.now().strftime('%d.%m.%Y %H:%M:%S'))
+
+	sinwin_data['promocodes'][promocode_name] = promocode
+
+	save_data()
+
+	await call.message.edit_text(
+		f"""✅Промокод создан: {date}
+
+Промокод: <code>{promocode_name}</code>
+Количество активаций: {promocode['activates']}
+Осталось активации: {promocode['activations_left']}
+Промокод на: {humanize_promocode_type(promocode['type'])}""",
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.delete_promocode_markup(promocode_name),
+	)
+
+
 @admin_router.callback_query(F.data.startswith('delete_promocode_'))
 async def delete_promocode_by_name(call: CallbackQuery):
-	promocode_name = call.data.split('_')[1]
+	promocode_name = call.data.replace('delete_promocode_', '')
 
 	promocode = sinwin_data['promocodes'].get(promocode_name, False)
 
@@ -291,13 +660,16 @@ async def delete_promocode_by_name(call: CallbackQuery):
 
 	save_data()
 
+	deleted_promocodes[promocode_name] = promocode
+
 	await call.message.answer(
 		f"""
 ❌ Промокод УДАЛЕН
 Промокод: <code>{promocode_name}</code>
 Промокод на: {humanize_promocode_type(promocode['type'])}
 """,
-		reply_markup=inline.create_deleted_markup(),
+		reply_markup=inline.create_deleted_markup(promocode_name),
+		parse_mode=ParseMode.HTML,
 	)
 
 
@@ -308,7 +680,7 @@ async def show_created_promocodes_callback(call: CallbackQuery):
 	for promocode_name, promocode in promocodes.items():
 		await call.message.answer(
 			f"""
-✅Промокод создан: {promocode['date'].strftime('%d.%m.%Y %H:%M:%S')}
+✅Промокод создан: {promocode['date']}
 
 Промокод: <code>{promocode_name}</code>
 Количество активаций: {promocode['activates']}

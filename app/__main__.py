@@ -311,8 +311,8 @@ async def main():
 	utils.setup_logger('INFO', ['sqlalchemy.engine', 'aiogram.bot.api'])
 
 	dp.include_routers(handlers.register_router)
-	dp.include_routers(handlers.default_router)
 	dp.include_routers(handlers.admin_router)
+	dp.include_routers(handlers.default_router)
 
 	scheduler.add_job(achievs_alerts, 'cron', hour=12, minute=0)
 

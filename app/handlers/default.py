@@ -24,6 +24,7 @@ from app.loader import (
 	scheduler,
 	sinwin_data,
 	user_achievements,
+	save_data
 )
 from app.utils.algorithms import is_valid_card
 
@@ -42,6 +43,33 @@ alerts = True
 transactions_dict = {}
 transactions_schedulded = {}
 withdraws_history = {}
+
+
+def get_percent_by_status(status: str) -> float:
+	"""
+	Gets the percent by status.
+
+	:param		status:	 The status
+	:type		status:	 str
+
+	:returns:	The percent by status.
+	:rtype:		float
+	"""
+	status = status.lower()
+
+	match status:
+		case 'новичок':
+			return 35
+		case 'специалист':
+			return 40
+		case 'профессионал':
+			return 45
+		case 'мастер':
+			return 50
+		case 'легенда':
+			return 60
+		case _:
+			return 35
 
 
 LIMITS = {
@@ -100,6 +128,110 @@ class PromoGroup(StatesGroup):
 class CancelTransaction(StatesGroup):
 	transac = State()
 	cancel_reason = State()
+
+
+@default_router.callback_query(F.data == 'enter_promo')
+async def enter_promocode(call: CallbackQuery, state: FSMContext):
+	await call.message.edit_text("Введите промокод", reply_markup=inline.create_back_markup('profile'))
+
+	await state.set_state(PromoGroup.promocode)
+
+
+def get_place(status: str):
+	if status == 'новичок':
+		return 1
+	elif status == 'специалист':
+		return 2
+	elif status == 'профессионал':
+		return 3
+	elif status == 'мастер':
+		return 4
+	elif status == 'легенда':
+		return 5
+	else:
+		return 0
+
+
+def get_next_level(status):
+	if status == 'новичок':
+		return 'специалист'
+
+	elif status == 'специалист':
+		return 'профессионал'
+
+	elif status == 'профессионал':
+		return 'мастер'
+
+	elif status == 'мастер':
+		return 'легенда'
+	
+	elif status == 'легенда':
+		return 'легенда'
+
+
+@default_router.message(F.text, PromoGroup.promocode)
+async def get_entered_promocode(message: Message, state: FSMContext):
+	partners = await APIRequest.post(
+		'/partner/find', {'opts': {'tg_id': message.from_user.id}}
+	)
+	partner = partners[0]['partners'][-1]
+
+	await state.update_data(promocode=message.text)
+
+	promocode_name = message.text
+
+	if not sinwin_data.get('promocodes', {}).get(promocode_name, False):
+		await message.answer('Такого промокода не существует', reply_markup=inline.create_back_markup('profile'))
+		await state.set_state(PromoGroup.promocode)
+		return
+	
+	promocode = sinwin_data.get('promocodes', {}).get(promocode_name)
+
+	if promocode['activations_left'] <= 0:
+		await message.answer('Такого промокода не существует', reply_markup=inline.create_back_markup('profile'))
+		await state.set_state(PromoGroup.promocode)
+		return
+
+	if promocode['type'] == 'prize':
+		partner['balance'] += float(promocode['amount'])
+		await message.answer(f'На ваш баланс начислено {convert_to_human(promocode["amount"])} рублей', reply_markup=inline.create_back_markup('profile'))
+	elif promocode['type'] == 'status' and promocode['status_type'] == 'status':
+		partner['status'] = promocode['data']
+		await message.answer(f'Вы перешли на статус {partner["status"]}', reply_markup=inline.create_back_markup('profile'))
+	elif promocode['type'] == 'status' and promocode['status_type'] == 'uplevel':
+		if get_place(partner['status']) < get_place(promocode['data']):
+			partner['status'] = get_next_level(partner['status'])
+		else:
+			await state.set_state(PromoGroup.promocode)
+			await message.answer('Такого промокода не существует', reply_markup=inline.create_back_markup('profile'))
+			return
+
+		await message.answer(f'Вы перешли на статус {partner["status"]}', reply_markup=inline.create_back_markup('profile'))
+	elif promocode['type'] == 'percent':
+		value = promocode['percent'] / 100
+
+		if get_percent_by_status(partner['status']) + value >= 100:
+			await state.set_state(PromoGroup.promocode)
+			await message.answer('Такого промокода не существует', reply_markup=inline.create_back_markup('profile'))
+			return
+
+		partner['additional_percent'] += value
+
+		await message.answer(f'Вам добавлено {promocode["percent"]}% к заработку', reply_markup=inline.create_back_markup('profile'))
+
+	await APIRequest.post('/partner/update', {**partner})
+	
+	promocode['activations_left'] -= 1
+
+	sinwin_data['promocodes'][promocode_name] = promocode
+
+	save_data()
+
+	#На ваш баланс начислено 5 000
+	#Вы перешли на статус Мастер
+	#Вам добавлено 5% к заработку
+
+	await state.clear()
 
 
 async def collect_stats(opts: dict):
@@ -1743,33 +1875,6 @@ async def statistics_online_callback(call: CallbackQuery):
 	)
 
 
-def get_percent_by_status(status: str) -> float:
-	"""
-	Gets the percent by status.
-
-	:param		status:	 The status
-	:type		status:	 str
-
-	:returns:	The percent by status.
-	:rtype:		float
-	"""
-	status = status.lower()
-
-	match status:
-		case 'новичок':
-			return 35
-		case 'специалист':
-			return 40
-		case 'профессионал':
-			return 45
-		case 'мастер':
-			return 50
-		case 'легенда':
-			return 60
-		case _:
-			return 35
-
-
 def get_status_conditions(
 	status, last_month_income, alltime_income, last_month_firstdeps
 ) -> tuple:
@@ -1804,20 +1909,6 @@ def get_status_conditions(
 		statuses_items[status_name] = '✅' if status_type else '❌'
 
 	return statuses_items, not any(val is False for val in statuses.values())
-
-
-def get_next_level(status):
-	if status == 'новичок':
-		return 'специалист'
-
-	elif status == 'специалист':
-		return 'профессионал'
-
-	elif status == 'профессионал':
-		return 'мастер'
-
-	elif status == 'мастер':
-		return 'легенда'
 
 
 @default_router.callback_query(F.data == 'status_levels', only_confirmed)
@@ -2224,7 +2315,7 @@ async def status_callback(call: CallbackQuery):
 
 		messages = [
 			f'🏆️ Ваш текущий статус: {partner["status"]}',
-			f'🎯 Вы получаете: {get_percent_by_status(partner["status"])}%\n',
+			f'🎯 Вы получаете: {get_percent_by_status(partner["status"]) + partner['additional_percent'] * 100}%\n',
 			f'📊 Ваш доход за последний месяц: {last_month_income_str} RUB',
 			f'💼 Общий доход: {alltime_income_str} RUB',
 			f'💰️ Первые депозиты за последний месяц: {last_month_firstdeps}\n',
@@ -2392,7 +2483,7 @@ API за все время: {api_count}
 
 Поздравляем! Вы переходите на следующий уровень "{get_next_level(partner['status'])}"!
 
-Процент Вашего дохода теперь: {get_percent_by_status(get_next_level(partner['status']))}%
+Процент Вашего дохода теперь: {get_percent_by_status(get_next_level(partner['status'])) + partner['additional_percent'] * 100}%
 				""",
 				reply_markup=inline.create_status_up_markup(),
 			)
@@ -2414,18 +2505,17 @@ async def send_message_about_status_change(status: str, userid: int):
 	scheduler.remove_job(f'{status}status_{userid}')
 
 	if status == 'confirm':
+		partner = await APIRequest.post('/partner/find', {'opts': {'tg_id': userid}})
+		partner = partner[0]['partners'][-1]
 		await bot.send_message(
 			chat_id=userid,
-			text="""
+			text=f"""
 ✅ Вы соответствуете условиям для перехода на следующий уровень!
 
-Поздравляем! Вы переходите на следующий уровень "Мастер"! Процент Вашего дохода теперь: 50 %	
+Поздравляем! Вы переходите на следующий уровень "Мастер"! Процент Вашего дохода теперь: {50 + partner['additional_percent'] * 100} %	
 """,
 			reply_markup=inline.create_status_up_markup(),
 		)
-
-		partner = await APIRequest.post('/partner/find', {'opts': {'tg_id': userid}})
-		partner = partner[0]['partners'][-1]
 
 		partner['status'] = 'мастер'
 		partner['percent'] = 50
@@ -2862,7 +2952,7 @@ async def profile_callback(call: CallbackQuery):
 		f'🛡️ Ваш хеш: {partner_hash}\n',
 		f'💰️ Баланс: {partner.get("balance", 0.0)} RUB',
 		f'⚖️ Статус: {status}',
-		f'🎯 Вы получаете: {get_percent_by_status(partner["status"])}%\n',
+		f'🎯 Вы получаете: {get_percent_by_status(partner["status"]) + partner['additional_percent'] * 100}%\n',
 		f'🏗️ Количество рефералов: {len(cpartners)}',
 		f'☯️ Количество дней с нами: {days_difference}',
 		# f'Ваша реферальная ссылка на @IziMin_test_Bot: https://t.me/IziMin_test_Bot?start='

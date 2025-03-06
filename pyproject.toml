@@ -21,6 +21,9 @@ apscheduler = "^3.11.0"
 python-dateutil = "^2.9.0.post0"
 aioredis = "^2.0.1"
 orjson = "^3.10.15"
+pandas = "^2.2.3"
+xlsxwriter = "^3.2.2"
+openpyxl = "^3.1.5"
 
 [format]
 # Like Black, use double quotes for strings.
