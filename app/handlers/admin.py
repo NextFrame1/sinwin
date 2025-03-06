@@ -2,17 +2,17 @@ import random
 import string
 from collections import Counter
 from datetime import datetime
+from typing import Any, Dict, List
+
 import pandas as pd
-from typing import List, Dict, Any
 from aiogram import F, Router
 from aiogram.enums import ParseMode
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message
-from aiogram.types import FSInputFile, URLInputFile, BufferedInputFile
+from aiogram.types import CallbackQuery, FSInputFile, Message
+
 import app.keyboards.admin_inline as inline
 from app.api import APIRequest
-
 from app.loader import humanize_place, humanize_promocode_type, save_data, sinwin_data
 
 admin_router = Router()
@@ -35,9 +35,28 @@ def generate_excel_file(data: List[Dict[str, Any]]):
 	df = pd.DataFrame.from_dict(data)
 
 	# Сохраняем DataFrame в Excel-файл
-	file_name = f'{datetime.now().strftime("%Y%m%d%H%M%S")}_output.xlsx'
+	file_name = f'{datetime.now().strftime("%Y%m%d")}_output.xlsx'
 	df.to_excel(file_name, index=False)
 
+	with pd.ExcelWriter(file_name, engine='openpyxl') as writer:
+		df.to_excel(writer, index=False, sheet_name='Partners')
+		ws = writer.sheets['Partners']
+
+		for word in list('CDEFGHIJKLMNOPQRSTUVWXYZ'):
+			ws.column_dimensions[word].width = 15
+
+		ws.column_dimensions['B'].width = 30
+		ws.column_dimensions['AA'].width = 20
+		ws.column_dimensions['AB'].width = 20
+		ws.column_dimensions['AC'].width = 20
+		ws.column_dimensions['AD'].width = 20
+		ws.column_dimensions['AE'].width = 20
+		ws.column_dimensions['AF'].width = 20
+		ws.column_dimensions['AG'].width = 20
+		ws.column_dimensions['AH'].width = 20
+		ws.column_dimensions['AI'].width = 20
+
+		writer.book.save(file_name)
 	return file_name
 
 
@@ -64,27 +83,37 @@ async def admin_all_partners_1win_callback(call: CallbackQuery):
 	approved_partners = 0
 
 	for i, partner in enumerate(partners):
-		partners_message.append(f'{i + 1}) {partner["tg_id"]}:{partner["username"]}:{partner["partner_hash"]}:{partner["status"]}:{partner["balance"]}')
+		partners_message.append(
+			f'{i + 1}) {partner["tg_id"]}:{partner["username"]}:{partner["partner_hash"]}:{partner["status"]}:{partner["balance"]}'
+		)
 		total_balance += partner['balance']
 
 		if partner['approved']:
 			approved_partners += 1
 
-	partners_message = "\n".join(partners_message)
+	partners_message = '\n'.join(partners_message)
 
-	await call.message.edit_text(f'''
+	(
+		await call.message.edit_text(
+			f"""
 Количество партнеров: {approved_partners}
 
 Баланс всех пользователей: {total_balance}
 
 tg_id:Ник:Хеш:Статус:Баланс
 {partners_message}
-''', reply_markup=inline.admin_send_partners_excel()),
+""",
+			reply_markup=inline.admin_send_partners_excel(),
+		),
+	)
 
 
 @admin_router.callback_query(F.data == 'send_partners_excel')
 async def send_partners_excel_callback(call: CallbackQuery):
-	await call.message.edit_text('Отправляем Excel-файл с информацией о партнерах... Ожидайте, это может занять некоторое время.', reply_markup=inline.create_back_markup('adminpanel'))
+	await call.message.edit_text(
+		'Отправляем Excel-файл с информацией о партнерах... Ожидайте, это может занять некоторое время.',
+		reply_markup=inline.create_back_markup('adminpanel'),
+	)
 
 	partners, result = await APIRequest.post('/partner/get', {'index': -1})
 	partners = partners['partners']
@@ -94,7 +123,7 @@ async def send_partners_excel_callback(call: CallbackQuery):
 	stats = result['data']
 
 	result_data = []
-	
+
 	for i, partner in enumerate(partners):
 		api_count = result['api_count'].get(partner['partner_hash'], 0)
 
@@ -260,8 +289,8 @@ async def send_partners_excel_callback(call: CallbackQuery):
 				'alltime_income': str(alltime_income),
 				'signals_gens': str(signals_gens),
 				'tg_id': str(partner['tg_id']),
-                'username': str(partner['username']),
-                'status': str(partner['status']),
+				'username': str(partner['username']),
+				'status': str(partner['status']),
 				'additional_percent': str(partner['additional_percent']),
 				'register_date': str(partner['register_date']),
 				'referals_count': str(partner['referals_count']),
@@ -274,14 +303,18 @@ async def send_partners_excel_callback(call: CallbackQuery):
 				'fullname': str(partner['fullname']),
 				'number_phone': str(partner['number_phone']),
 				'experience_time': str(partner['experience_time']),
-                'balance': str(partner['balance']),
+				'balance': str(partner['balance']),
 			}
 		)
-	
+
 	filename = generate_excel_file(result_data)
-	
+
 	efile = FSInputFile(path=filename)
-	await call.message.answer_document(document=efile, caption='Результат в виде Excel-файла', reply_markup=inline.back_markup())
+	await call.message.answer_document(
+		document=efile,
+		caption='Результат в виде Excel-файла',
+		reply_markup=inline.back_markup(),
+	)
 
 
 ################################################################################
@@ -324,7 +357,8 @@ async def create_promocode_rub_callback(call: CallbackQuery, state: FSMContext):
 
 @admin_router.callback_query(F.data == 'create_promocode_percent')
 async def create_promocode_percent(call: CallbackQuery, state: FSMContext):
-	await call.message.edit_text("""
+	await call.message.edit_text(
+		"""
 Напишите на сколько процентов хотите сделать промокод?
 
 Напишите: Название / Процент / количество использований
@@ -333,8 +367,10 @@ async def create_promocode_percent(call: CallbackQuery, state: FSMContext):
 
 Пример: FREE 5 1
 Промокод FREE, на прибавку 5 % к заработку, 1 активация
-""", parse_mode=ParseMode.HTML,
-reply_markup=inline.create_admin_promocode_markup(),)
+""",
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.create_admin_promocode_markup(),
+	)
 	await state.set_state(CreatePercentPromocodeGroup.promocode_name)
 
 

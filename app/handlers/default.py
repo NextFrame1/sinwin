@@ -21,10 +21,10 @@ from app.loader import (
 	convert_to_human,
 	humanize_place,
 	loaded_achievements,
+	save_data,
 	scheduler,
 	sinwin_data,
 	user_achievements,
-	save_data
 )
 from app.utils.algorithms import is_valid_card
 
@@ -132,7 +132,9 @@ class CancelTransaction(StatesGroup):
 
 @default_router.callback_query(F.data == 'enter_promo')
 async def enter_promocode(call: CallbackQuery, state: FSMContext):
-	await call.message.edit_text("Введите промокод", reply_markup=inline.create_back_markup('profile'))
+	await call.message.edit_text(
+		'Введите промокод', reply_markup=inline.create_back_markup('profile')
+	)
 
 	await state.set_state(PromoGroup.promocode)
 
@@ -164,7 +166,7 @@ def get_next_level(status):
 
 	elif status == 'мастер':
 		return 'легенда'
-	
+
 	elif status == 'легенда':
 		return 'легенда'
 
@@ -181,55 +183,79 @@ async def get_entered_promocode(message: Message, state: FSMContext):
 	promocode_name = message.text
 
 	if not sinwin_data.get('promocodes', {}).get(promocode_name, False):
-		await message.answer('Такого промокода не существует', reply_markup=inline.create_back_markup('profile'))
+		await message.answer(
+			'Такого промокода не существует',
+			reply_markup=inline.create_back_markup('profile'),
+		)
 		await state.set_state(PromoGroup.promocode)
 		return
-	
+
 	promocode = sinwin_data.get('promocodes', {}).get(promocode_name)
 
 	if promocode['activations_left'] <= 0:
-		await message.answer('Такого промокода не существует', reply_markup=inline.create_back_markup('profile'))
+		await message.answer(
+			'Такого промокода не существует',
+			reply_markup=inline.create_back_markup('profile'),
+		)
 		await state.set_state(PromoGroup.promocode)
 		return
 
 	if promocode['type'] == 'prize':
 		partner['balance'] += float(promocode['amount'])
-		await message.answer(f'На ваш баланс начислено {convert_to_human(promocode["amount"])} рублей', reply_markup=inline.create_back_markup('profile'))
+		await message.answer(
+			f'На ваш баланс начислено {convert_to_human(promocode["amount"])} рублей',
+			reply_markup=inline.create_back_markup('profile'),
+		)
 	elif promocode['type'] == 'status' and promocode['status_type'] == 'status':
 		partner['status'] = promocode['data']
-		await message.answer(f'Вы перешли на статус {partner["status"]}', reply_markup=inline.create_back_markup('profile'))
+		await message.answer(
+			f'Вы перешли на статус {partner["status"]}',
+			reply_markup=inline.create_back_markup('profile'),
+		)
 	elif promocode['type'] == 'status' and promocode['status_type'] == 'uplevel':
 		if get_place(partner['status']) < get_place(promocode['data']):
 			partner['status'] = get_next_level(partner['status'])
 		else:
 			await state.set_state(PromoGroup.promocode)
-			await message.answer('Такого промокода не существует', reply_markup=inline.create_back_markup('profile'))
+			await message.answer(
+				'Такого промокода не существует',
+				reply_markup=inline.create_back_markup('profile'),
+			)
 			return
 
-		await message.answer(f'Вы перешли на статус {partner["status"]}', reply_markup=inline.create_back_markup('profile'))
+		await message.answer(
+			f'Вы перешли на статус {partner["status"]}',
+			reply_markup=inline.create_back_markup('profile'),
+		)
 	elif promocode['type'] == 'percent':
 		value = promocode['percent'] / 100
 
 		if get_percent_by_status(partner['status']) + value >= 100:
 			await state.set_state(PromoGroup.promocode)
-			await message.answer('Такого промокода не существует', reply_markup=inline.create_back_markup('profile'))
+			await message.answer(
+				'Такого промокода не существует',
+				reply_markup=inline.create_back_markup('profile'),
+			)
 			return
 
 		partner['additional_percent'] += value
 
-		await message.answer(f'Вам добавлено {promocode["percent"]}% к заработку', reply_markup=inline.create_back_markup('profile'))
+		await message.answer(
+			f'Вам добавлено {promocode["percent"]}% к заработку',
+			reply_markup=inline.create_back_markup('profile'),
+		)
 
 	await APIRequest.post('/partner/update', {**partner})
-	
+
 	promocode['activations_left'] -= 1
 
 	sinwin_data['promocodes'][promocode_name] = promocode
 
 	save_data()
 
-	#На ваш баланс начислено 5 000
-	#Вы перешли на статус Мастер
-	#Вам добавлено 5% к заработку
+	# На ваш баланс начислено 5 000
+	# Вы перешли на статус Мастер
+	# Вам добавлено 5% к заработку
 
 	await state.clear()
 
@@ -1696,11 +1722,19 @@ async def adminpanel_callback(call: CallbackQuery):
 		f'└ Поставлено на вывод {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: 100 000 рублей',
 	]
 
-	await call.message.edit_text(
-		'\n'.join(messages),
-		parse_mode=ParseMode.HTML,
-		reply_markup=inline.create_adminpanel_markup(),
-	)
+	try:
+		await call.message.edit_text(
+			'\n'.join(messages),
+			parse_mode=ParseMode.HTML,
+			reply_markup=inline.create_adminpanel_markup(),
+		)
+	except Exception:
+		await call.message.delete()
+		await call.message.answer(
+			'\n'.join(messages),
+			parse_mode=ParseMode.HTML,
+			reply_markup=inline.create_adminpanel_markup(),
+		)
 
 
 def get_top_workers_place_description(place: str):
@@ -2315,7 +2349,7 @@ async def status_callback(call: CallbackQuery):
 
 		messages = [
 			f'🏆️ Ваш текущий статус: {partner["status"]}',
-			f'🎯 Вы получаете: {get_percent_by_status(partner["status"]) + partner['additional_percent'] * 100}%\n',
+			f'🎯 Вы получаете: {get_percent_by_status(partner["status"]) + partner["additional_percent"] * 100}%\n',
 			f'📊 Ваш доход за последний месяц: {last_month_income_str} RUB',
 			f'💼 Общий доход: {alltime_income_str} RUB',
 			f'💰️ Первые депозиты за последний месяц: {last_month_firstdeps}\n',
@@ -2952,7 +2986,7 @@ async def profile_callback(call: CallbackQuery):
 		f'🛡️ Ваш хеш: {partner_hash}\n',
 		f'💰️ Баланс: {partner.get("balance", 0.0)} RUB',
 		f'⚖️ Статус: {status}',
-		f'🎯 Вы получаете: {get_percent_by_status(partner["status"]) + partner['additional_percent'] * 100}%\n',
+		f'🎯 Вы получаете: {get_percent_by_status(partner["status"]) + partner["additional_percent"] * 100}%\n',
 		f'🏗️ Количество рефералов: {len(cpartners)}',
 		f'☯️ Количество дней с нами: {days_difference}',
 		# f'Ваша реферальная ссылка на @IziMin_test_Bot: https://t.me/IziMin_test_Bot?start='

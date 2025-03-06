@@ -25,12 +25,12 @@ def create_back_markup(callback: str = 'showmenu'):
 	return builder.as_markup()
 
 
-
 def create_deleted_markup(promocode_name):
 	keyboard = [
 		[
 			InlineKeyboardButton(
-				text='❌ Восстановить', callback_data=f'reborn_promocode_{promocode_name}'
+				text='❌ Восстановить',
+				callback_data=f'reborn_promocode_{promocode_name}',
 			),
 		],
 		[InlineKeyboardButton(text='🔙 Назад', callback_data='admin_promocodes')],
@@ -75,7 +75,9 @@ def create_admin_promocodes_markup():
 def admin_send_partners_excel():
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text='Прислать отчет', callback_data='send_partners_excel'))
+	builder.row(
+		InlineKeyboardButton(text='Прислать отчет', callback_data='send_partners_excel')
+	)
 	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='adminpanel'))
 
 	builder.adjust(1)
