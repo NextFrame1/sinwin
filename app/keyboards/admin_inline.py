@@ -54,6 +54,108 @@ def delete_promocode_markup(promocode_name):
 	return builder.as_markup()
 
 
+def create_approve_revshare_change_markup(new_revshare: float):
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(
+			text='Ок', callback_data=f'revshare_approve_revshare_change_{new_revshare}'
+		),
+	)
+	builder.row(
+		InlineKeyboardButton(text='Отмена', callback_data='change_revshare_percent')
+	)
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_approve_balance_change_markup(new_balance: float):
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(
+			text='Ок', callback_data=f'balance_approve_balance_change_{new_balance}'
+		),
+	)
+	builder.row(
+		InlineKeyboardButton(text='Отмена', callback_data='change_partner_balance')
+	)
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def admin_main_settings_menu():
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(
+			text='Изменить баланс партнерки', callback_data='change_partner_balance'
+		),
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='Поменять процент RevShare', callback_data='change_revshare_percent'
+		),
+	)
+	builder.row(
+		InlineKeyboardButton(text='Поменять ссылки', callback_data='change_bot_links')
+	)
+	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='adminpanel'))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_bot_link_menu(bot_name: str, url: str):
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(text=bot_name, url=url),
+	)
+	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='change_bot_links'))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_bot_links_menu():
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(
+			text='💣 Mines', callback_data='change_links_in_bot_mines'
+		),
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='🚀 Lucky Jet', callback_data='change_links_in_bot_luckyjet'
+		),
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='🚗 Speed Cash', callback_data='change_links_in_bot_speedcash'
+		),
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='🎲 Coin Flip', callback_data='change_links_in_bot_coinflip'
+		),
+	)
+	builder.row(
+		InlineKeyboardButton(text='🔙 Назад', callback_data='admin_main_settings')
+	)
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
 def create_admin_promocodes_markup():
 	keyboard = [
 		[

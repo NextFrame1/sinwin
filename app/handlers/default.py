@@ -206,13 +206,13 @@ async def get_entered_promocode(message: Message, state: FSMContext):
 			f'На ваш баланс начислено {convert_to_human(promocode["amount"])} рублей',
 			reply_markup=inline.create_back_markup('profile'),
 		)
-	elif promocode['type'] == 'status' and promocode['status_type'] == 'status':
+	elif promocode['type'] == 'status' and promocode['status_type'] == 'uplevel':
 		partner['status'] = promocode['data']
 		await message.answer(
 			f'Вы перешли на статус {partner["status"]}',
 			reply_markup=inline.create_back_markup('profile'),
 		)
-	elif promocode['type'] == 'status' and promocode['status_type'] == 'uplevel':
+	elif promocode['type'] == 'status' and promocode['status_type'] == 'status':
 		if get_place(partner['status']) < get_place(promocode['data']):
 			partner['status'] = get_next_level(partner['status'])
 		else:

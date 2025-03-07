@@ -10,10 +10,17 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, FSInputFile, Message
+from loguru import logger
 
 import app.keyboards.admin_inline as inline
 from app.api import APIRequest
-from app.loader import humanize_place, humanize_promocode_type, save_data, sinwin_data
+from app.loader import (
+	convert_to_human,
+	humanize_place,
+	humanize_promocode_type,
+	save_data,
+	sinwin_data,
+)
 
 admin_router = Router()
 
@@ -70,6 +77,197 @@ class CreateStatusPromocodeGroup(StatesGroup):
 
 class CreatePercentPromocodeGroup(StatesGroup):
 	promocode_name = State()
+
+
+class ChangeBalance(StatesGroup):
+	new_balance = State()
+
+
+class ChangeRevsharePercent(StatesGroup):
+	new_revshare = State()
+
+
+#### ИЗМЕНИТЬ МЕНЮ ####
+
+
+@admin_router.callback_query(F.data == 'admin_main_settings')
+async def admin_main_settings(call: CallbackQuery):
+	result, status = await APIRequest.get('/base/admin_balance_and_revshare')
+
+	balance = result['balance']
+	revshare_percent = result['revshare']
+
+	await call.message.edit_text(
+		text=f"""Выберите из списка
+	
+Баланс Партнерки: {convert_to_human(balance)} рублей
+RevShare: {int(revshare_percent * 100)}%""",
+		reply_markup=inline.admin_main_settings_menu(),
+	)
+
+
+@admin_router.callback_query(F.data == 'change_revshare_percent')
+async def change_revshare_percent(call: CallbackQuery, state: FSMContext):
+	result, status = await APIRequest.get('/base/admin_balance_and_revshare')
+
+	balance = result['balance']
+	revshare_percent = result['revshare']
+
+	await call.message.edit_text(
+		f"""Напишите какой процент у вас в партнерском аккаунте 1Win.
+
+Текущий баланс партнерки: {convert_to_human(balance)}
+Текущий RevShare: {int(revshare_percent * 100)}%""",
+		reply_markup=inline.create_back_markup('admin_main_settings'),
+	)
+
+	await state.set_state(ChangeRevsharePercent.new_revshare)
+
+
+@admin_router.message(F.text, ChangeRevsharePercent.new_revshare)
+async def change_revshare_percent_message(message: Message, state: FSMContext):
+	await state.update_data(new_revshare=message.text)
+	new_revshare = message.text
+
+	if not new_revshare.isdigit():
+		await message.answer(
+			f'Некорректный ввод: {new_revshare} не число',
+			reply_markup=inline.create_back_markup('change_revshare_percent'),
+		)
+		await state.set_state(ChangeRevsharePercent.new_revshare)
+		return
+	if new_revshare >= 100:
+		await message.answer(
+			f'Некорректный ввод: {new_revshare} больше или равен 100',
+			reply_markup=inline.create_back_markup('change_revshare_percent'),
+		)
+		await state.set_state(ChangeRevsharePercent.new_revshare)
+		return
+
+	new_revshare = int(new_revshare) / 100
+
+	result, status = await APIRequest.get('/base/admin_balance_and_revshare')
+
+	revshare_percent = result['revshare']
+
+	await message.answer(
+		f"""Вы хотите поменять процент дохода по RevShare на {int(new_revshare * 100)}%?
+
+Чем больше процент, тем меньше получают партнеры.
+
+Текущий RevShare: {int(revshare_percent * 100)}%""",
+		reply_markup=inline.create_approve_revshare_change_markup(new_revshare),
+	)
+
+	await state.clear()
+
+
+@admin_router.callback_query(F.data.startswith('revshare_approve_revshare_change_'))
+async def approve_revshare_change_callback(call: CallbackQuery):
+	new_revshare = float(call.data.replace('revshare_approve_revshare_change_', ''))
+
+	result, status = await APIRequest.get(
+		f'/base/set_revshare?revshare_perc={new_revshare}'
+	)
+
+	await call.message.edit_text(
+		f'Текущий процент по RevShare изменен\nПроцент партнерки: {int(new_revshare * 100)}%',
+		reply_markup=inline.create_back_markup('admin_main_settings'),
+	)
+
+
+@admin_router.callback_query(F.data == 'change_partner_balance')
+async def change_partner_balance_callback(call: CallbackQuery, state: FSMContext):
+	result, status = await APIRequest.get('/base/admin_balance_and_revshare')
+
+	balance = result['balance']
+
+	await call.message.edit_text(
+		f'Напишите текущий баланс в партнерском аккаунте 1Win.\n\nТекущий баланс партнерки: {convert_to_human(balance)} рублей',
+		reply_markup=inline.create_back_markup('admin_main_settings'),
+	)
+
+	await state.set_state(ChangeBalance.new_balance)
+
+
+@admin_router.message(F.text, ChangeBalance.new_balance)
+async def change_partner_balance_message_callback(message: Message, state: FSMContext):
+	await state.update_data(new_balance=message.text)
+	new_balance = message.text
+
+	if not new_balance.isdigit():
+		await message.answer(
+			f'Некорректный ввод: {new_balance} не число',
+			reply_markup=inline.create_back_markup('change_partner_balance'),
+		)
+		await state.set_state(ChangeBalance.new_balance)
+		return
+
+	new_balance = float(new_balance)
+
+	result, status = await APIRequest.get('/base/admin_balance_and_revshare')
+
+	balance = result['balance']
+
+	await message.answer(
+		f"""Вы хотите сделать баланс партнерки {convert_to_human(new_balance)} рублей?
+
+Текущий баланс партнерки: {convert_to_human(balance)} рублей""",
+		reply_markup=inline.create_approve_balance_change_markup(new_balance),
+	)
+
+	await state.clear()
+
+
+@admin_router.callback_query(F.data.startswith('balance_approve_balance_change_'))
+async def approve_balance_change_new_balance(call: CallbackQuery):
+	new_balance = float(call.data.replace('balance_approve_balance_change_', ''))
+
+	result, status = await APIRequest.get(
+		f'/base/set_admin_balance?balance_set={new_balance}'
+	)
+
+	balance = result['balance']
+
+	await call.message.edit_text(
+		f'Текущий баланс партнерки изменен\nБаланс партнерки: {balance}',
+		reply_markup=inline.create_back_markup('admin_main_settings'),
+	)
+
+
+@admin_router.callback_query(F.data == 'change_bot_links')
+async def change_bot_links(call: CallbackQuery):
+	await call.message.edit_text(
+		'Выберите бота в которых вы хотите поменять ссылки',
+		reply_markup=inline.create_bot_links_menu(),
+	)
+
+
+@admin_router.callback_query(F.data.startswith('change_links_in_bot_'))
+async def change_links_in_bot_by_name(call: CallbackQuery):
+	bot_name = call.data.replace('change_links_in_bot_', '')
+
+	if bot_name == 'mines':
+		bot_name = '💣 Mines'
+		url = 'https://t.me/IziMin_test_Bot'
+	elif bot_name == 'luckyjet':
+		bot_name = '🚀 Lucky Jet'
+		url = 'https://t.me/CashJetBot'
+	elif bot_name == 'speedcash':
+		bot_name = '🚗 Speed Cash'
+		url = 'https://t.me/SPDCashBot'
+	elif bot_name == 'coinflip':
+		bot_name = '🎲 Coin Flip'
+		url = 'https://t.me/CoinFlipBot'
+	else:
+		bot_name = '💣 Mines'
+		url = 'https://t.me/IziMin_test_Bot'
+
+	await call.message.edit_text(
+		f'Для того, чтобы задать ссылки для бота {bot_name} зайдите в диалог <a href="{url}">с ним</a> и перейдите в админ-панель бота.',
+		reply_markup=inline.create_bot_link_menu(bot_name, url),
+		parse_mode=ParseMode.HTML,
+	)
 
 
 @admin_router.callback_query(F.data == 'admin_all_partners_1win')
@@ -842,6 +1040,8 @@ async def admin_top_workers_by_deps_callback(call: CallbackQuery):
 	other_dates_firstdeps = [info for name, info in stats.items() if name == 'firstdep']
 	others_firstdeps = [firstdep for firstdep in other_dates_firstdeps]
 
+	logger.debug(f'{firstdeps_last_month}    {deps_last_month}')
+
 	alltime_deps = (
 		deps_last_month + others_deps + firstdeps_last_month + others_firstdeps
 	)
@@ -854,13 +1054,13 @@ async def admin_top_workers_by_deps_callback(call: CallbackQuery):
 	for partner in last_month_deps:
 		partner_hash = partner['partner_hash']
 
-		partners_last_month[partner_hash] = partner['x']
+		partners_last_month[partner_hash] = partner['amount']
 
 	# All time
 	for partner in alltime_deps:
 		partner_hash = partner['partner_hash']
 
-		partners_alltime[partner_hash] = partner['x']
+		partners_alltime[partner_hash] = partner['amount']
 
 	partners_last_month = dict(
 		sorted(partners_last_month.items(), key=lambda item: item[1], reverse=True)
@@ -931,14 +1131,14 @@ async def admin_top_workers_by_users_callback(call: CallbackQuery):
 
 	partners = result['partners']
 
-	sorted_partners = sorted(partners, key=lambda x: x['referrals_count'], reverse=True)
+	sorted_partners = sorted(partners, key=lambda x: x['referals_count'], reverse=True)
 	sorted_partners = sorted_partners[:10]
 
 	partners_alltime_messages = []
 
 	for index, partner in enumerate(sorted_partners):
 		partner_hash = partner['partner_hash']
-		count = partner['referrals_count']
+		count = partner['referals_count']
 		if index == 0:
 			partners_alltime_messages.append(
 				f'🥇 {partner_hash}: {count} пользователей'
@@ -956,7 +1156,7 @@ async def admin_top_workers_by_users_callback(call: CallbackQuery):
 				f'🏅 {partner_hash}: {count} пользователей'
 			)
 
-	result, code = await APIRequest.get('/base/stats?exclude=1')
+	result, code = await APIRequest.get('/base/stats')
 
 	stats = result['data']
 
@@ -989,23 +1189,23 @@ async def admin_top_workers_by_users_callback(call: CallbackQuery):
 
 	partners_last_month_messages = []
 
-	for id_partner, count in top_10:
+	for index, (id_partner, count) in enumerate(top_10):
 		partner_hash = id_partner
 
 		if index == 0:
-			partners_alltime_messages.append(
+			partners_last_month_messages.append(
 				f'🥇 {partner_hash}: {count} пользователей'
 			)
 		elif index == 1:
-			partners_alltime_messages.append(
+			partners_last_month_messages.append(
 				f'🥈 {partner_hash}: {count} пользователей'
 			)
-		elif index == 3:
-			partners_alltime_messages.append(
+		elif index == 2:  # Здесь должно быть 2, вместо 3
+			partners_last_month_messages.append(
 				f'🥉 {partner_hash}: {count} пользователей'
 			)
 		else:
-			partners_alltime_messages.append(
+			partners_last_month_messages.append(
 				f'🏅 {partner_hash}: {count} пользователей'
 			)
 
