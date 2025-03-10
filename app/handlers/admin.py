@@ -1,7 +1,8 @@
 import random
 import string
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from typing import Any, Dict, List
 
 import pandas as pd
@@ -11,6 +12,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, FSInputFile, Message
 from loguru import logger
+
+from app.database.test import users
 
 import app.keyboards.admin_inline as inline
 from app.api import APIRequest
@@ -87,7 +90,1023 @@ class ChangeRevsharePercent(StatesGroup):
 	new_revshare = State()
 
 
-#### ИЗМЕНИТЬ МЕНЮ ####
+class GetInfoAboutPartner(StatesGroup):
+	partner_key = State()
+
+
+class ChangePercentIncome(StatesGroup):
+	new_percent = State()
+	partner_hash = State()
+	show_changed_percent = State()
+
+
+class ChangePartnerBalance(StatesGroup):
+	new_balance = State()
+	partner_hash = State()
+
+
+################################################################################
+############################# Информация о партнере ############################
+################################################################################
+
+
+@admin_router.callback_query(F.data == 'admin_info_about_partner')
+async def admin_info_partner(call: CallbackQuery, state: FSMContext):
+	await call.message.edit_text('''Напишите что-то одно:
+├ Телеграм id
+├ Телеграм Ник
+└ Хеш партнера''', reply_markup=inline.create_admin_info_by_user_markup())
+	await state.set_state(GetInfoAboutPartner.partner_key)
+
+
+def get_percent_by_status(status: str) -> float:
+	"""
+	Gets the percent by status.
+
+	:param		status:	 The status
+	:type		status:	 str
+
+	:returns:	The percent by status.
+	:rtype:		float
+	"""
+	status = status.lower()
+
+	match status:
+		case 'новичок':
+			return 35
+		case 'специалист':
+			return 40
+		case 'профессионал':
+			return 45
+		case 'мастер':
+			return 50
+		case 'легенда':
+			return 60
+		case _:
+			return 35
+
+
+async def collect_stats(opts: dict):
+	result, status = await APIRequest.post('/user/find', {'opts': opts})
+
+	# if opts.get('game', False):
+	# result_incomes, status2 = await APIRequest.get(f"/base/incomes?game={opts['game']}")
+	# incomes = result_incomes["income_stat"]
+	# postbacks = result_incomes["postbacks_stat"]
+
+	today = datetime.now().date()
+	yesterday = today - timedelta(days=1)
+	last_week_start = today - timedelta(days=today.weekday() + 7)
+	last_week_end = last_week_start + timedelta(days=6)
+	last_month_start = today - relativedelta(months=1)
+	last_month_end = last_month_start + relativedelta(day=31)
+
+	users = result['users']
+
+	users_count = len(users)
+	users_income = sum([user['income'] for user in users])
+	users_notreg_count = len([user for user in users if not user['approved']])
+	users_nottopup_count = len(
+		[user for user in users if user['balance'] < 500.0 and user['approved']]
+	)
+	users_gamed_count = len(
+		[user for user in users if user['balance'] > 500.0 and user['approved']]
+	)
+
+	users_today = [
+		user
+		for user in users
+		if datetime.strptime(user['register_date'], '%Y-%m-%dT%H:%M:%S').date() == today
+	]
+	users_yesterday = [
+		user
+		for user in users
+		if datetime.strptime(user['register_date'], '%Y-%m-%dT%H:%M:%S').date()
+		== yesterday
+	]
+	users_lastweek = [
+		user
+		for user in users
+		if last_week_start
+		<= datetime.strptime(user['register_date'], '%Y-%m-%dT%H:%M:%S').date()
+		<= last_week_end
+	]
+	users_month = [
+		user
+		for user in users
+		if last_month_start
+		<= datetime.strptime(user['register_date'], '%Y-%m-%dT%H:%M:%S').date()
+		<= last_month_end
+	]
+
+	users_today = len(users_today)
+	users_yesterday = len(users_yesterday)
+	users_lastweek = len(users_lastweek)
+	users_month = len(users_month)
+
+	return {
+		'users_count': users_count,
+		'users_today': users_today,
+		'users_yesterday': users_yesterday,
+		'users_lastweek': users_lastweek,
+		'users_month': users_month,
+		'users_notreg_count': users_notreg_count,
+		'users_nottopup_count': users_nottopup_count,
+		'users_gamed_count': users_gamed_count,
+		'users_income': users_income,
+	}
+
+
+@admin_router.callback_query(F.data.startswith('admin_info_by_user'))
+async def admin_info_by_user(call: CallbackQuery):
+	partner_hash = call.data.replace('admin_info_by_user', '')
+	partners, code = APIRequest.post('/partner/find', {'opts': {'partner_hash': partner_hash}})
+
+	partner = partners[-1]
+
+	user_id = partner['tg_id']
+	partner_hash = partner['partner_hash']
+	status = partner['status']
+	additional_percent = partner['additional_percent']
+	username = partner['username']
+
+	reg_date = datetime.fromisoformat(partner.get('register_date'))
+	cur_date = datetime.now()
+	difference = cur_date - reg_date
+	days_difference = max(difference.days, 1)
+
+	cpartners = await APIRequest.post(
+		'/partner/find', {'opts': {'referrer_hash': partner['partner_hash']}}
+	)
+	cpartners = cpartners[0]['partners']
+
+	cpartners_items = []
+
+	for cp in cpartners:
+		regdate = datetime.strptime(cp['register_date'], '%Y-%m-%dT%H:%M:%S')
+		regdate = regdate.strftime('%H:%M %d/%m/%Y')
+		cpartners_items.append(f'├ {regdate}:{cp["tg_id"]}:{cp["status"]}:{cp["username"]}:{cp["status"]}:{cp["total_income"]} рублей')
+
+	cpartners_items = '\n'.join(cpartners_items)
+
+	transactions, status = await APIRequest.post('/partner/transactions', {'partner_hash': partner_hash})
+
+	transactions_items = []
+
+	for transac in transactions:
+		regdate = datetime.strptime(transac['register_date'], '%Y-%m-%dT%H:%M:%S.%s').strftime('%H:%M %d/%m/%Y')
+		withdraw_sum = transac['amount']
+		transaction_type = transac['transaction_type']
+		transactions_items.append(f'├ {regdate}:{withdraw_sum}:{transaction_type}')
+	
+	transactions_items = "\n".join(transactions_items)
+
+	opts = {'referal_parent': partner['partner_hash']}
+
+	data = await collect_stats(opts)
+
+	result, code = await APIRequest.get('/base/stats')
+	stats = result['data']
+
+	api_count = result['api_count'].get(partner['partner_hash'], 0)
+
+	today_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['today']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	yesterday_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['yesterday']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	last_week_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['last_week']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	last_month_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['last_month']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
+	today_deps = sum(
+		[
+			dep['amount']
+			for dep in stats['today']['dep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	) + sum(
+		[
+			dep['amount']
+			for dep in stats['today']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
+	yesterday_deps = sum(
+		[
+			dep['amount']
+			for dep in stats['yesterday']['dep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	) + sum(
+		[
+			dep['amount']
+			for dep in stats['yesterday']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
+	last_week_deps = sum(
+		[
+			dep['amount']
+			for dep in stats['last_week']['dep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	) + sum(
+		[
+			dep['amount']
+			for dep in stats['last_week']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	last_month_deps = sum(
+		[
+			dep['amount']
+			for dep in stats['last_month']['dep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	) + sum(
+		[
+			dep['amount']
+			for dep in stats['last_month']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
+	today_income = sum(
+		[
+			dep['x']
+			for dep in stats['today']['income']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	yesterday_income = sum(
+		[
+			dep['x']
+			for dep in stats['yesterday']['income']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	last_week_income = sum(
+		[
+			dep['x']
+			for dep in stats['last_week']['income']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	last_month_income = sum(
+		[
+			dep['x']
+			for dep in stats['last_month']['income']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
+	alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+	other_dates_firstdep = [
+		info for name, info in stats.items() if name == 'firstdep'
+	]
+	others_firstdep = len(
+		[
+			dep['x']
+			for dep in other_dates_firstdep
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
+	alltime_firstdeps = (
+		others_firstdep
+		+ today_firstdeps
+		+ yesterday_firstdeps
+		+ last_week_firstdeps
+		+ last_month_firstdeps
+	)
+	alltime_income = (
+		today_income + yesterday_income + last_week_income + last_month_income
+	)
+
+	signals_gens = sum(
+		[info[partner['partner_hash']] for _, info in result['signals'].items()]
+	)
+
+	await call.message.edit_text(f'''
+СТАТИСТИКА ПО ВСЕМ БОТАМ
+
+💰 Баланс: (баланс пользователя) RUB
+
+🆔 ID пользователя: {user_id}
+├ 🤖Ник пользователя: {username}
+├ 🛡 Хэш: {partner_hash}
+├ ⚖️ Статус: {status}
+├ 🎯 Пользователь получает : {get_percent_by_status(status) + additional_percent * 100}%
+└ ☯️ Количество дней с нами: {days_difference}
+
+🏗 Количество рефералов: {len(cpartners)}
+├ Дата:Tg_id:Ник:Статус:Доход за все время
+{cpartners_items}
+
+🤖 История выводов: n
+├ Дата:Сумма вывода:Наименование вывода
+{transactions_items}
+
+Всего пользователей: {data["users_count"]}
+├ Депозиты за все время: {alltime_deps}
+├ Доход за все время: {alltime_income}
+
+Первые депозиты за все время: {alltime_firstdeps}
+├ Api за все время: {api_count}
+└ Сгенерировано сигналов: {signals_gens}
+
+┌ Пользователей на этапе регистрации: {data["users_notreg_count"]}
+├ Пользователей на этапе пополнения: {data["users_nottopup_count"]}
+└ Пользователей на этапе игры: {data["users_gamed_count"]}
+
+Пользователей за сегодня: {data["users_today"]}
+├ Пользователей за вчера: {data["users_yesterday"]}
+├ Пользователей за неделю: {data["users_lastweek"]}
+└ Пользователей за месяц: {data["users_month"]}
+
+Сумма депозитов за сегодня: {today_deps}
+├ Сумма депозитов за вчера: {yesterday_deps}
+├ Сумма депозитов за неделю: {last_week_deps}
+└ Сумма депозитов за месяц: {last_month_deps}
+
+Первые депозиты за сегодня: {today_firstdeps}
+├ Первые депозиты за вчера: {yesterday_firstdeps}
+├ Первые депозиты за неделю: {last_week_firstdeps}
+└ Первые депозиты за месяц: {last_month_firstdeps}
+
+Доход за сегодня: {today_income}
+├ Доход за вчера: {yesterday_income}
+├ Доход за неделю: {last_week_income}
+└ Доход за месяц: {last_month_income}
+''', reply_markup=inline.create_partner_interactions_markup())
+
+
+@admin_router.message(F.text, GetInfoAboutPartner.partner_key)
+async def get_partner_by_key_message(message: Message, state: FSMContext):
+	await state.update_data(partner_key=message.text)
+
+	partner_key = message.text
+
+	if partner_key.isdigit():
+		result, status = await APIRequest.post('/partner/find', {'opts': {'tg_id': int(partner_key)}})
+
+		partners = result['partners']
+
+		if not partners:
+			result, status = await APIRequest.post('/partner/find', {'opts': {'username': partner_key}})
+
+			partners = result['partners']
+	
+	if not partners:
+		result, status = await APIRequest.post('/partner/find', {'partner_hash': {'tg_id': partner_key}})
+
+		partners = result['partners']
+
+	if not partners:
+		await message.answer('''
+Я не понял кого вы хотите найти
+
+Напишите что-то одно:
+├ Телеграм id
+├ Телеграм Ник
+└ Хеш партнера''', reply_markup=inline.create_admin_info_by_user_markup())
+		await state.set_state(GetInfoAboutPartner.partner_key)
+		return
+	
+	partner = partners[-1]
+
+	user_id = partner['tg_id']
+	partner_hash = partner['partner_hash']
+	status = partner['status']
+	additional_percent = partner['additional_percent']
+	username = partner['username']
+
+	reg_date = datetime.fromisoformat(partner.get('register_date'))
+	cur_date = datetime.now()
+	difference = cur_date - reg_date
+	days_difference = max(difference.days, 1)
+
+	cpartners = await APIRequest.post(
+		'/partner/find', {'opts': {'referrer_hash': partner['partner_hash']}}
+	)
+	cpartners = cpartners[0]['partners']
+
+	cpartners_items = []
+
+	for cp in cpartners:
+		regdate = datetime.strptime(cp['register_date'], '%Y-%m-%dT%H:%M:%S')
+		regdate = regdate.strftime('%H:%M %d/%m/%Y')
+		cpartners_items.append(f'├ {regdate}:{cp["tg_id"]}:{cp["status"]}:{cp["username"]}:{cp["status"]}:{cp["total_income"]} рублей')
+
+	cpartners_items = '\n'.join(cpartners_items)
+
+	transactions, status = await APIRequest.post('/partner/transactions', {'partner_hash': partner_hash})
+
+	transactions_items = []
+
+	for transac in transactions:
+		regdate = datetime.strptime(transac['register_date'], '%Y-%m-%dT%H:%M:%S.%s').strftime('%H:%M %d/%m/%Y')
+		withdraw_sum = transac['amount']
+		transaction_type = transac['transaction_type']
+		transactions_items.append(f'├ {regdate}:{withdraw_sum}:{transaction_type}')
+	
+	transactions_items = "\n".join(transactions_items)
+
+	opts = {'referal_parent': partner['partner_hash']}
+
+	data = await collect_stats(opts)
+
+	result, code = await APIRequest.get('/base/stats')
+	stats = result['data']
+
+	api_count = result['api_count'].get(partner['partner_hash'], 0)
+
+	today_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['today']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	yesterday_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['yesterday']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	last_week_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['last_week']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	last_month_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['last_month']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
+	today_deps = sum(
+		[
+			dep['amount']
+			for dep in stats['today']['dep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	) + sum(
+		[
+			dep['amount']
+			for dep in stats['today']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
+	yesterday_deps = sum(
+		[
+			dep['amount']
+			for dep in stats['yesterday']['dep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	) + sum(
+		[
+			dep['amount']
+			for dep in stats['yesterday']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
+	last_week_deps = sum(
+		[
+			dep['amount']
+			for dep in stats['last_week']['dep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	) + sum(
+		[
+			dep['amount']
+			for dep in stats['last_week']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	last_month_deps = sum(
+		[
+			dep['amount']
+			for dep in stats['last_month']['dep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	) + sum(
+		[
+			dep['amount']
+			for dep in stats['last_month']['firstdep']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
+	today_income = sum(
+		[
+			dep['x']
+			for dep in stats['today']['income']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	yesterday_income = sum(
+		[
+			dep['x']
+			for dep in stats['yesterday']['income']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	last_week_income = sum(
+		[
+			dep['x']
+			for dep in stats['last_week']['income']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+	last_month_income = sum(
+		[
+			dep['x']
+			for dep in stats['last_month']['income']
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
+	alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+	other_dates_firstdep = [
+		info for name, info in stats.items() if name == 'firstdep'
+	]
+	others_firstdep = len(
+		[
+			dep['x']
+			for dep in other_dates_firstdep
+			if dep['partner_hash'] == partner['partner_hash']
+		]
+	)
+
+	alltime_firstdeps = (
+		others_firstdep
+		+ today_firstdeps
+		+ yesterday_firstdeps
+		+ last_week_firstdeps
+		+ last_month_firstdeps
+	)
+	alltime_income = (
+		today_income + yesterday_income + last_week_income + last_month_income
+	)
+
+	signals_gens = sum(
+		[info[partner['partner_hash']] for _, info in result['signals'].items()]
+	)
+	
+	await message.answer(f'''
+СТАТИСТИКА ПО ВСЕМ БОТАМ
+
+💰 Баланс: (баланс пользователя) RUB
+
+🆔 ID пользователя: {user_id}
+├ 🤖Ник пользователя: {username}
+├ 🛡 Хэш: {partner_hash}
+├ ⚖️ Статус: {status}
+├ 🎯 Пользователь получает : {get_percent_by_status(status) + additional_percent * 100}%
+└ ☯️ Количество дней с нами: {days_difference}
+
+🏗 Количество рефералов: {len(cpartners)}
+├ Дата:Tg_id:Ник:Статус:Доход за все время
+{cpartners_items}
+
+🤖 История выводов: n
+├ Дата:Сумма вывода:Наименование вывода
+{transactions_items}
+
+Всего пользователей: {data["users_count"]}
+├ Депозиты за все время: {alltime_deps}
+├ Доход за все время: {alltime_income}
+
+Первые депозиты за все время: {alltime_firstdeps}
+├ Api за все время: {api_count}
+└ Сгенерировано сигналов: {signals_gens}
+
+┌ Пользователей на этапе регистрации: {data["users_notreg_count"]}
+├ Пользователей на этапе пополнения: {data["users_nottopup_count"]}
+└ Пользователей на этапе игры: {data["users_gamed_count"]}
+
+Пользователей за сегодня: {data["users_today"]}
+├ Пользователей за вчера: {data["users_yesterday"]}
+├ Пользователей за неделю: {data["users_lastweek"]}
+└ Пользователей за месяц: {data["users_month"]}
+
+Сумма депозитов за сегодня: {today_deps}
+├ Сумма депозитов за вчера: {yesterday_deps}
+├ Сумма депозитов за неделю: {last_week_deps}
+└ Сумма депозитов за месяц: {last_month_deps}
+
+Первые депозиты за сегодня: {today_firstdeps}
+├ Первые депозиты за вчера: {yesterday_firstdeps}
+├ Первые депозиты за неделю: {last_week_firstdeps}
+└ Первые депозиты за месяц: {last_month_firstdeps}
+
+Доход за сегодня: {today_income}
+├ Доход за вчера: {yesterday_income}
+├ Доход за неделю: {last_week_income}
+└ Доход за месяц: {last_month_income}
+''', reply_markup=inline.create_partner_interactions_markup())
+
+
+@admin_router.callback_query(F.data.startswith('admin_set_percent_income_to_partner_'))
+async def admin_set_percent_income_to_partner_callback(call: CallbackQuery, state: FSMContext):
+	partner_hash = call.data.replace('admin_set_percent_income_to_partner_', '')
+
+	# partners, code = await APIRequest.post('/partner/find', {'opts': {'partner_hash': partner_hash}})
+	# partner = partners['partners'][-1]
+
+	await call.message.edit_text('''Напишите какой процент для этого пользователя сделать или выберите из инлайт кнопок.
+
+Процент от дохода 1 Win Максимум 60 %''', reply_markup=inline.create_percent_input_markup(partner_hash))
+
+	await state.update_data(partner_hash=partner_hash)
+	await state.set_state(ChangePercentIncome.new_percent)
+
+
+@admin_router.callback_query(F.data.startswith('admin_change_percent_income_to_percent_'), ChangePercentIncome.new_percent)
+async def admin_change_percent_income_to_percent_callback(call: CallbackQuery, state: FSMContext):
+	percent = call.data.split('.')[-1]
+	partner_hash = call.data.split('.')[0].replace('admin_change_percent_income_to_percent_', '')
+
+	await call.message.edit_text(f'Отображать измененный процент ({percent}%) у пользователя?', reply_markup=inline.create_yes_no_markup_for_income_percent(partner_hash))
+
+	await state.update_data(new_percent=int(percent))
+	await state.set_state(ChangePercentIncome.show_changed_percent)
+
+
+@admin_router.callback_query(F.data.startswith('admin_change_percent_income_to_percent_'), ChangePercentIncome.new_percent)
+async def admin_change_percent_income_to_percent_msg(message: Message, state: FSMContext):
+	percent = message.text
+
+	if not percent.isdigit():
+		await message.answer('Ошибка! Введите число!')
+		await state.set_state(ChangePercentIncome.new_percent)
+		return
+	else:
+		percent = int(percent)
+
+	await message.answer(f'Отображать измененный процент ({percent}%) у пользователя?', reply_markup=inline.create_yes_no_markup_for_income_percent())
+
+	await state.update_data(new_percent=percent)
+	await state.set_state(ChangePercentIncome.show_changed_percent)
+
+
+@admin_router.callback_query(F.data == 'admin_percent_income_disapprove', ChangePercentIncome.show_changed_percent)
+async def admin_percent_income_disapprove_callback(call: CallbackQuery, state: FSMContext):
+	await state.update_data(show_changed_percent=False)
+	data = await state.get_data()
+	partner_hash = data['partner_hash']
+	percent = data['new_percent']
+
+	partner = await APIRequest.post('/partner/find', {'opts': {'partner_hash': partner_hash}})
+
+	username = f'\n├ 🤖Ник пользователя: {partner["username"]}' if partner["username"] is not None else ''
+
+	reg_date = datetime.fromisoformat(partner.get('register_date'))
+	cur_date = datetime.now()
+	difference = cur_date - reg_date
+	days_difference = max(difference.days, 1)
+
+	partner['showed_percent'] = 'default'
+
+	await call.message.edit_text(f'''Поменял процент дохода для пользователя
+
+Пользователь получает : {percent}
+Пользователь видит: Нет
+
+🆔 ID пользователя: {partner["tg_id"]}{username}
+├ 🛡 Хэш: {partner_hash}
+├ ⚖️ Статус: {partner["status"]}
+└ ☯️ Количество дней с нами: {days_difference}''', reply_markup=inline.get_markup_back_and_cancel_perc_inc(partner_hash))
+
+
+@admin_router.callback_query(F.data == 'admin_percent_income_approve', ChangePercentIncome.show_changed_percent)
+async def admin_percent_income_approve_callback(call: CallbackQuery, state: FSMContext):
+	await state.update_data(show_changed_percent=False)
+	data = await state.get_data()
+	partner_hash = data['partner_hash']
+	percent = data['new_percent']
+
+	partner = await APIRequest.post('/partner/find', {'opts': {'partner_hash': partner_hash}})
+
+	username = f'\n├ 🤖Ник пользователя: {partner["username"]}' if partner["username"] is not None else ''
+
+	reg_date = datetime.fromisoformat(partner.get('register_date'))
+	cur_date = datetime.now()
+	difference = cur_date - reg_date
+	days_difference = max(difference.days, 1)
+
+	partner['showed_percent'] = percent
+
+	await call.message.edit_text(f'''Поменял процент дохода для пользователя
+
+Пользователь получает : {percent}
+Пользователь видит: Да
+
+🆔 ID пользователя: {partner["tg_id"]}{username}
+├ 🛡 Хэш: {partner_hash}
+├ ⚖️ Статус: {partner["status"]}
+└ ☯️ Количество дней с нами: {days_difference}''', reply_markup=inline.get_markup_back_and_cancel_perc_inc(partner_hash))
+
+
+@admin_router.callback_query(F.data.startswith('admin_change_status_'))
+def admin_change_status_callback(call: CallbackQuery):
+	partner_hash = call.data.replace('admin_change_status_', '')
+
+	await call.message.edit_text('Выберите какой статус сделать для этого пользователя.', reply_markup=inline.create_change_status_markup(partner_hash))
+
+
+@admin_router.callback_query(F.data.startswith('admin_set_status_'))
+async def admin_set_status_callback(call: CallbackQuery):
+	status = call.data.split('.')[-1]
+	data = call.data.split('.')[0]
+	partner_hash = data.replace('admin_set_status_', '')
+
+	partners, code = await APIRequest.post('/partner/find', {'opts': {'partner_hash': partner_hash}})
+	partner = partners['partners'][-1]
+
+	partner['status'] = status
+
+	await APIRequest.post('/partner/update', {**partner})
+
+	await call.message.edit_text(f'Статус пользователя изменен: {status}', reply_markup=inline.get_markup_back_and_cancel_status(partner_hash))
+
+
+@admin_router.callback_query(F.data.startswith('admin_change_balance_'))
+async def admin_change_balance_callback(call: CallbackQuery, state: FSMContext):
+	partner_hash = call.data.replace('admin_change_balance_', '')
+
+	partners, code = await APIRequest.post('/partner/find', {'opts': {'partner_hash': partner_hash}})
+	partner = partners['partners'][-1]
+
+	username = f'\n├ 🤖Ник пользователя: {partner["username"]}' if partner["username"] is not None else ''
+
+	reg_date = datetime.fromisoformat(partner.get('register_date'))
+	cur_date = datetime.now()
+	difference = cur_date - reg_date
+	days_difference = max(difference.days, 1)
+
+	await call.message.edit_text(f'''Баланс пользователя: {partner["balance"]} рублей
+
+🆔 ID пользователя: {partner["tg_id"]}{username}
+├ 🛡 Хэш: {partner_hash}
+├ ⚖️ Статус: {partner["status"]}
+└ ☯️ Количество дней с нами: {days_difference}
+
+Напишите в чат какой баланс делать для пользователя?
+
+Поставить на паузу - заморозить счет чтобы любые доходы и расходы не зачислялись на баланс
+''', reply_markup=inline.create_admin_balance_change_markup(partner_hash))
+
+	await state.update_data(partner_hash=partner_hash)
+	await state.set_state(ChangePartnerBalance.new_balance)
+
+
+@admin_router.callback_query(F.data.startswith('admin_freeze_partner_'), ChangePartnerBalance.new_balance)
+async def admin_freeze_partner_callback(call: CallbackQuery, state: FSMContext):
+	await state.clear()
+
+	partner_hash = call.data.replace('admin_freeze_partner_', '')
+
+	partners, code = await APIRequest.post('/partner/find', {'opts': {'partner_hash': partner_hash}})
+	partner = partners['partners'][-1]
+
+	username = f'\n├ 🤖Ник пользователя: {partner["username"]}' if partner["username"] is not None else ''
+
+	reg_date = datetime.fromisoformat(partner.get('register_date'))
+	cur_date = datetime.now()
+	difference = cur_date - reg_date
+	days_difference = max(difference.days, 1)
+
+	partner['is_freezed'] = True
+
+	await APIRequest.post('/partner/update', {**partner})
+
+	await call.message.edit_text(f'''Баланс пользователя: {partner["balance"]} рублей
+
+🆔 ID пользователя: {partner["tg_id"]}{username}
+├ 🛡 Хэш: {partner_hash}
+├ ⚖️ Статус: {partner["status"]}
+└ ☯️ Количество дней с нами: {days_difference}
+
+Напишите в чат какой баланс делать для пользователя?
+
+Снять с паузы - разморозить счет чтобы любые доходы и расходы зачислялись на баланс
+''', reply_markup=inline.create_admin_balance_change_markup_defreeze(partner_hash))
+
+	await state.set_state(ChangePartnerBalance.new_balance)
+
+
+@admin_router.callback_query(F.data.startswith('admin_defreeze_partner_'), ChangePartnerBalance.new_balance)
+async def admin_defreeze_partner_callback(call: CallbackQuery, state: FSMContext):
+	await state.clear()
+
+	partner_hash = call.data.replace('admin_defreeze_partner_', '')
+
+	partners, code = await APIRequest.post('/partner/find', {'opts': {'partner_hash': partner_hash}})
+	partner = partners['partners'][-1]
+
+	username = f'\n├ 🤖Ник пользователя: {partner["username"]}' if partner["username"] is not None else ''
+
+	reg_date = datetime.fromisoformat(partner.get('register_date'))
+	cur_date = datetime.now()
+	difference = cur_date - reg_date
+	days_difference = max(difference.days, 1)
+
+	partner['is_freezed'] = False
+
+	await APIRequest.post('/partner/update', {**partner})
+
+	await call.message.edit_text(f'''Баланс пользователя: {partner["balance"]} рублей
+
+🆔 ID пользователя: {partner["tg_id"]}{username}
+├ 🛡 Хэш: {partner_hash}
+├ ⚖️ Статус: {partner["status"]}
+└ ☯️ Количество дней с нами: {days_difference}
+
+Напишите в чат какой баланс делать для пользователя?
+
+Поставить на паузу - заморозить счет чтобы любые доходы и расходы не зачислялись на баланс
+''', reply_markup=inline.create_admin_balance_change_markup_defreeze(partner_hash))
+
+	await state.set_state(ChangePartnerBalance.new_balance)
+
+
+@admin_router.message(F.text, ChangePartnerBalance.new_balance)
+async def set_new_balance_message(message: Message, state: FSMContext):
+	new_balance = message.text
+
+	data = await state.get_data()
+	partner_hash = data['partner_hash']
+
+	if not new_balance.isdigit():
+		await message.answer('Введите число', reply_markup=inline.create_admin_balance_change_markup(partner_hash))
+		await state.set_state(ChangePartnerBalance.new_balance)
+		return
+	else:
+		new_balance = int(new_balance)
+
+	partners, code = await APIRequest.post('/partner/find', {'opts': {'partner_hash': partner_hash}})
+	partner = partners['partners'][-1]
+
+	username = f'\n├ 🤖Ник пользователя: {partner["username"]}' if partner["username"] is not None else ''
+
+	reg_date = datetime.fromisoformat(partner.get('register_date'))
+	cur_date = datetime.now()
+	difference = cur_date - reg_date
+	days_difference = max(difference.days, 1)
+
+	await message.answer(f'''Сделать для пользователя
+	
+🆔 ID пользователя: (тут тг id пользователя){username}
+├ 🛡 Хэш: {partner_hash}
+├ ⚖️ Статус: {partner["status"]}
+└ ☯️ Количество дней с нами: {days_difference}
+
+Сейчас баланс пользователя: {partner["balance"]}
+Баланс который станет: {new_balance}''', reply_markup=inline.create_ok_or_cancel_balance_markup(partner_hash, new_balance))
+	await state.clear()
+
+
+@admin_router.callback_query(F.data.startswith('admin_totally_change_balance_'))
+async def admin_totally_change_balance_callback(call: CallbackQuery):
+	new_balance = call.data.split('.')[-1]
+	partner_hash = call.data.split('.')[0].replace('admin_totally_change_balance_', '')
+	partners, code = await APIRequest.post('/partner/find', {'opts': {'partner_hash': partner_hash}})
+	partner = partners['partners'][-1]
+
+	username = f'\n├ 🤖Ник пользователя: {partner["username"]}' if partner["username"] is not None else ''
+
+	reg_date = datetime.fromisoformat(partner.get('register_date'))
+	cur_date = datetime.now()
+	difference = cur_date - reg_date
+	days_difference = max(difference.days, 1)
+
+	partner['balance'] = int(new_balance)
+
+	await APIRequest.post('/partner/update', {**partner})
+
+	await call.message.edit_text(f'''Баланс пользователя: {new_balance}
+	
+🆔 ID пользователя: (тут тг id пользователя){username}
+├ 🛡 Хэш: {partner["partner_hash"]}
+├ ⚖️ Статус: {partner["status"]}
+└ ☯️ Количество дней с нами: {days_difference}''', reply_markup=inline.create_back_admin_info_markup(partner_hash))
+
+
+@admin_router.callback_query(F.data.startswith('admin_block_user_'))
+async def admin_block_user_callback(call: CallbackQuery):
+	partner_hash = call.data.replace('admin_block_user_', '')
+
+	partners, code = await APIRequest.post('/partner/find', {'opts': {'partner_hash': partner_hash}})
+	partner = partners['partners'][-1]
+
+	username = f'\n├ 🤖Ник пользователя: {partner["username"]}' if partner["username"] is not None else ''
+
+	reg_date = datetime.fromisoformat(partner.get('register_date'))
+	cur_date = datetime.now()
+	difference = cur_date - reg_date
+	days_difference = max(difference.days, 1)
+
+	await call.message.edit_text(f'''Баланс пользователя: {partner["balance"]}
+
+🆔 ID пользователя: {partner["tg_id"]}{username}
+├ 🛡 Хэш: {partner["partner_hash"]}
+├ ⚖️ Статус: {partner["status"]}
+└ ☯️ Количество дней с нами: {days_difference}
+
+Заблокировать - пользователь будет заблокирован, он больше не сможет пользоваться ботом''', reply_markup=inline.create_block_user_markup(partner_hash))
+
+
+@admin_router.callback_query(F.data.startswith('admin_totally_block_'))
+async def admin_totally_block_callback(call: CallbackQuery):
+	partner_hash = call.data.replace('admin_totally_block_', '')
+
+	partners, code = await APIRequest.post('/partner/find', {'opts': {'partner_hash': partner_hash}})
+	partner = partners['partners'][-1]
+
+	username = f'\n├ 🤖Ник пользователя: {partner["username"]}' if partner["username"] is not None else ''
+
+	reg_date = datetime.fromisoformat(partner.get('register_date'))
+	cur_date = datetime.now()
+	difference = cur_date - reg_date
+	days_difference = max(difference.days, 1)
+
+	partner["approved"] = False
+	users[partner["tg_id"]] = users.get(partner["tg_id"], {})
+	users[partner["tg_id"]]['final'] = False
+
+	await APIRequest.post('/partner/update', {**partner})
+
+	await call.message.edit_text(f'''Баланс пользователя: {partner["balance"]}
+
+🆔 ID пользователя: {partner["tg_id"]}{username}
+├ 🛡 Хэш: {partner["partner_hash"]}
+├ ⚖️ Статус: {partner["status"]}
+└ ☯️ Количество дней с нами: {days_difference}''', reply_markup=inline.create_unblock_user_markup(partner_hash))
+
+
+@admin_router.callback_query(F.data.startswith('admin_totally_unblock_'))
+async def admin_totally_unblock__callback(call: CallbackQuery):
+	partner_hash = call.data.replace('admin_totally_unblock_', '')
+
+	partners, code = await APIRequest.post('/partner/find', {'opts': {'partner_hash': partner_hash}})
+	partner = partners['partners'][-1]
+
+	username = f'\n├ 🤖Ник пользователя: {partner["username"]}' if partner["username"] is not None else ''
+
+	reg_date = datetime.fromisoformat(partner.get('register_date'))
+	cur_date = datetime.now()
+	difference = cur_date - reg_date
+	days_difference = max(difference.days, 1)
+
+	partner["approved"] = True
+	users[partner["tg_id"]] = users.get(partner["tg_id"], {})
+	users[partner["tg_id"]]['final'] = True
+
+	await APIRequest.post('/partner/update', {**partner})
+
+	await call.message.edit_text(f'''Баланс пользователя: {partner["balance"]}
+
+🆔 ID пользователя: {partner["tg_id"]}{username}
+├ 🛡 Хэш: {partner["partner_hash"]}
+├ ⚖️ Статус: {partner["status"]}
+└ ☯️ Количество дней с нами: {days_difference}''', reply_markup=inline.create_block_user_markup(partner_hash))
+
+
+###############################################################
+######################## ИЗМЕНИТЬ МЕНЮ ########################
+###############################################################
 
 
 @admin_router.callback_query(F.data == 'admin_main_settings')
@@ -136,6 +1155,9 @@ async def change_revshare_percent_message(message: Message, state: FSMContext):
 		)
 		await state.set_state(ChangeRevsharePercent.new_revshare)
 		return
+
+	new_revshare = int(new_revshare)
+
 	if new_revshare >= 100:
 		await message.answer(
 			f'Некорректный ввод: {new_revshare} больше или равен 100',
@@ -502,6 +1524,10 @@ async def send_partners_excel_callback(call: CallbackQuery):
 				'number_phone': str(partner['number_phone']),
 				'experience_time': str(partner['experience_time']),
 				'balance': str(partner['balance']),
+				'showed_percent': str(partner['showed_percent']),
+				'is_freezed': str(partner['is_freezed']),
+				'last_withdraw_date': str(partner["last_withdraw_date"]),
+				'total_income': str(partner["total_income"])
 			}
 		)
 

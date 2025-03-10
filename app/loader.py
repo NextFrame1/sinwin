@@ -36,6 +36,7 @@ DEFAULT_DATA = {
 			'activations_left': 10000,
 		}
 	},
+	'debug': False
 }
 
 
@@ -78,8 +79,11 @@ def validate_data(data: dict):
 
 	if promocodes is not None:
 		count += 1
+	
+	if data.get('debug') is None:
+		count += 1
 
-	if count != 4:
+	if count != 5:
 		raise Exception(
 			'Fatal Error: Invalid data in data.json file. Please, check and fix it.'
 		)

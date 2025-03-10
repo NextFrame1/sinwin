@@ -72,7 +72,7 @@ def create_adminpanel_markup():
 	)
 	builder.row(
 		InlineKeyboardButton(
-			text='Информация по человеку', callback_data='admin_info_by_user'
+			text='Информация по человеку', callback_data='admin_info_about_partner'
 		)
 	)
 	builder.row(

@@ -618,7 +618,7 @@ async def statistics_callback(call: CallbackQuery):
 	await call.message.edit_text(
 		'\n'.join(messages),
 		parse_mode=ParseMode.HTML,
-		reply_markup=inline.create_statistics_bot_menu(),
+		reply_markup=inline.create_statistics_bot_menu(partner['partner_hash']),
 	)
 
 
@@ -2347,9 +2347,11 @@ async def status_callback(call: CallbackQuery):
 			},
 		}
 
+		showed_percent = partner["showed_percent"] if partner["showed_percent"] != "default" else get_percent_by_status(partner["status"]) + partner["additional_percent"] * 100
+
 		messages = [
 			f'🏆️ Ваш текущий статус: {partner["status"]}',
-			f'🎯 Вы получаете: {get_percent_by_status(partner["status"]) + partner["additional_percent"] * 100}%\n',
+			f'🎯 Вы получаете: {showed_percent}%\n',
 			f'📊 Ваш доход за последний месяц: {last_month_income_str} RUB',
 			f'💼 Общий доход: {alltime_income_str} RUB',
 			f'💰️ Первые депозиты за последний месяц: {last_month_firstdeps}\n',
@@ -2511,13 +2513,14 @@ API за все время: {api_count}
 			and partner['status'] != 'мастер'
 			and partner['status'] != 'легенда'
 		):
+			showed_percent = partner["showed_percent"] if partner["showed_percent"] != "default" else get_percent_by_status(get_next_level(partner["status"])) + partner["additional_percent"] * 100
 			await call.message.edit_text(
 				f"""
 ✅ Вы соответствуете условиям для перехода на следующий уровень!
 
 Поздравляем! Вы переходите на следующий уровень "{get_next_level(partner['status'])}"!
 
-Процент Вашего дохода теперь: {get_percent_by_status(get_next_level(partner['status'])) + partner['additional_percent'] * 100}%
+Процент Вашего дохода теперь: {showed_percent}%
 				""",
 				reply_markup=inline.create_status_up_markup(),
 			)
@@ -2541,6 +2544,7 @@ async def send_message_about_status_change(status: str, userid: int):
 	if status == 'confirm':
 		partner = await APIRequest.post('/partner/find', {'opts': {'tg_id': userid}})
 		partner = partner[0]['partners'][-1]
+		# showed_percent = partner["showed_percent"] if partner["showed_percent"] != "default" else get_percent_by_status(partner["status"]) + partner["additional_percent"] * 100
 		await bot.send_message(
 			chat_id=userid,
 			text=f"""
@@ -2981,12 +2985,14 @@ async def profile_callback(call: CallbackQuery):
 	)
 	cpartners = cpartners[0]['partners']
 
+	showed_percent = partner["showed_percent"] if partner["showed_percent"] != "default" else get_percent_by_status(partner["status"]) + partner["additional_percent"] * 100
+
 	messages = [
 		f'<b>Ваш профиль</b>\n\n🆔 Ваш ID: {call.from_user.id}',
 		f'🛡️ Ваш хеш: {partner_hash}\n',
 		f'💰️ Баланс: {partner.get("balance", 0.0)} RUB',
 		f'⚖️ Статус: {status}',
-		f'🎯 Вы получаете: {get_percent_by_status(partner["status"]) + partner["additional_percent"] * 100}%\n',
+		f'🎯 Вы получаете: {showed_percent}%\n',
 		f'🏗️ Количество рефералов: {len(cpartners)}',
 		f'☯️ Количество дней с нами: {days_difference}',
 		# f'Ваша реферальная ссылка на @IziMin_test_Bot: https://t.me/IziMin_test_Bot?start='
@@ -3010,6 +3016,10 @@ async def withdraw_callback(call: CallbackQuery):
 		partner = partner[-1]
 	else:
 		await call.answer('Недоступно получение партнера')
+		return
+
+	if partner['is_freezed']:
+		await call.answer('Ваш аккаунт заморожен.')
 		return
 
 	messages = [
@@ -3245,6 +3255,7 @@ async def user_approve_crypto_withdraw(call: CallbackQuery, state: FSMContext):
 			'partner_hash': partner_hash,
 			'username': str(call.from_user.username),
 			'amount': data['withdraw_sum'],
+			'transaction_type': 'Криптовалюта',
 			'withdraw_card': data['withdraw_card'],
 			'approved': False,
 			'preview_id': int(
@@ -3443,6 +3454,7 @@ async def user_approve_card_withdraw(call: CallbackQuery, state: FSMContext):
 			'partner_hash': partner_hash,
 			'username': str(call.from_user.username),
 			'amount': data['withdraw_sum'],
+			'transaction_type': 'Карта',
 			'withdraw_card': data['withdraw_card'],
 			'approved': False,
 			'preview_id': int(
@@ -4028,6 +4040,7 @@ async def user_approve_steam_withdraw(call: CallbackQuery, state: FSMContext):
 			'partner_hash': partner_hash,
 			'username': str(call.from_user.username),
 			'amount': data['withdraw_sum'],
+			'transaction_type': 'Steam',
 			'withdraw_card': data['withdraw_card'],
 			'approved': False,
 			'preview_id': int(
@@ -4217,6 +4230,7 @@ async def user_approve_phone_withdraw(call: CallbackQuery, state: FSMContext):
 			'partner_hash': partner_hash,
 			'username': str(call.from_user.username),
 			'amount': data['withdraw_sum'],
+			'transaction_type': 'Телефон',
 			'withdraw_card': data['withdraw_card'],
 			'approved': False,
 			'preview_id': int(
@@ -4406,6 +4420,7 @@ async def user_approve_fkwallet_withdraw(call: CallbackQuery, state: FSMContext)
 			'partner_hash': partner_hash,
 			'username': str(call.from_user.username),
 			'amount': data['withdraw_sum'],
+			'transaction_type': 'FKWallet',
 			'withdraw_card': data['withdraw_card'],
 			'approved': False,
 			'preview_id': int(
@@ -4595,6 +4610,7 @@ async def user_approve_piastrix_withdraw(call: CallbackQuery, state: FSMContext)
 			'partner_hash': partner_hash,
 			'username': str(call.from_user.username),
 			'amount': data['withdraw_sum'],
+			'transaction_type': 'Piastrix',
 			'withdraw_card': data['withdraw_card'],
 			'approved': False,
 			'preview_id': int(
