@@ -380,6 +380,7 @@ async def approve_user(call: CallbackQuery):
 			),
 			'age': int(''.join(data.get('name').split(' ')[1:])),
 			'tg_id': str(tid),
+			'showed_percent': 'default',
 		}
 
 		result, status_code = await APIRequest.post('/partner/create', data_creation)

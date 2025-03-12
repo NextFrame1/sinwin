@@ -127,19 +127,83 @@ def create_bot_link_menu(bot_name: str, url: str):
 def create_percent_input_markup(partner_hash: str):
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text='5', callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.5'))
-	builder.row(InlineKeyboardButton(text='10', callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.10'))
-	builder.row(InlineKeyboardButton(text='15', callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.15'))
-	builder.row(InlineKeyboardButton(text='20', callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.20'))
-	builder.row(InlineKeyboardButton(text='25', callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.25'))
-	builder.row(InlineKeyboardButton(text='30', callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.35'))
-	builder.row(InlineKeyboardButton(text='35', callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.35'))
-	builder.row(InlineKeyboardButton(text='40', callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.40'))
-	builder.row(InlineKeyboardButton(text='45', callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.45'))
-	builder.row(InlineKeyboardButton(text='50', callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.50'))
-	builder.row(InlineKeyboardButton(text='55', callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.55'))
-	builder.row(InlineKeyboardButton(text='60', callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.60'))
-	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data=f'admin_info_by_user{partner_hash}'))
+	builder.row(
+		InlineKeyboardButton(
+			text='5',
+			callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.5',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='10',
+			callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.10',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='15',
+			callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.15',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='20',
+			callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.20',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='25',
+			callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.25',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='30',
+			callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.30',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='35',
+			callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.35',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='40',
+			callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.40',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='45',
+			callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.45',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='50',
+			callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.50',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='55',
+			callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.55',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='60',
+			callback_data=f'admin_change_percent_income_to_percent_{partner_hash}.60',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='🔙 Назад', callback_data=f'admin_info_by_user{partner_hash}'
+		)
+	)
 
 	builder.adjust(6)
 
@@ -151,12 +215,13 @@ def get_markup_back_and_cancel_status(partner_hash):
 
 	builder.row(
 		InlineKeyboardButton(
-			text='Отмена', callback_data=f'admin_set_percent_income_to_partner_{partner_hash}'
+			text='Отмена',
+			callback_data=f'admin_set_percent_income_to_partner_{partner_hash}',
 		),
 	)
 	builder.row(
 		InlineKeyboardButton(
-			text='🔙 Назад', callback_data='admin_percent_income_disapprove'
+			text='🔙 Назад', callback_data=f'admin_info_by_user{partner_hash}'
 		),
 	)
 
@@ -170,7 +235,8 @@ def get_markup_back_and_cancel_perc_inc(partner_hash):
 
 	builder.row(
 		InlineKeyboardButton(
-			text='Отмена', callback_data=f'admin_set_percent_income_to_partner_{partner_hash}'
+			text='Отмена',
+			callback_data=f'admin_set_percent_income_to_partner_{partner_hash}',
 		),
 	)
 	builder.row(
@@ -193,13 +259,12 @@ def create_yes_no_markup_for_income_percent(partner_hash):
 		),
 	)
 	builder.row(
-		InlineKeyboardButton(
-			text='Да', callback_data='admin_percent_income_approve'
-		),
+		InlineKeyboardButton(text='Да', callback_data='admin_percent_income_approve'),
 	)
 	builder.row(
 		InlineKeyboardButton(
-			text='Отмена', callback_data=f'admin_set_percent_income_to_partner_{partner_hash}'
+			text='Отмена',
+			callback_data=f'admin_set_percent_income_to_partner_{partner_hash}',
 		),
 	)
 
@@ -211,7 +276,11 @@ def create_yes_no_markup_for_income_percent(partner_hash):
 def create_admin_info_by_user_markup():
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text='Все партнеры', callback_data='admin_all_partners_1win'))
+	builder.row(
+		InlineKeyboardButton(
+			text='Все партнеры', callback_data='admin_all_partners_1win'
+		)
+	)
 	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='adminpanel'))
 
 	builder.adjust(1)
@@ -222,12 +291,39 @@ def create_admin_info_by_user_markup():
 def create_change_status_markup(partner_hash: str):
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text='Новичок 35%', callback_data=f'admin_set_status_{partner_hash}.новичок'))
-	builder.row(InlineKeyboardButton(text='Специалист 40%', callback_data=f'admin_set_status_{partner_hash}.специалист'))
-	builder.row(InlineKeyboardButton(text='Профессионал 45%', callback_data=f'admin_set_status_{partner_hash}.профессионал'))
-	builder.row(InlineKeyboardButton(text='Мастер 50%', callback_data=f'admin_set_status_{partner_hash}.мастер'))
-	builder.row(InlineKeyboardButton(text='Легенда Суб Партнерство', callback_data=f'admin_set_status_{partner_hash}.легенда'))
-	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data=f'admin_info_by_user{partner_hash}'))
+	builder.row(
+		InlineKeyboardButton(
+			text='Новичок 35%', callback_data=f'admin_set_status_{partner_hash}.новичок'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='Специалист 40%',
+			callback_data=f'admin_set_status_{partner_hash}.специалист',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='Профессионал 45%',
+			callback_data=f'admin_set_status_{partner_hash}.профессионал',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='Мастер 50%', callback_data=f'admin_set_status_{partner_hash}.мастер'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='Легенда Суб Партнерство',
+			callback_data=f'admin_set_status_{partner_hash}.легенда',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='🔙 Назад', callback_data=f'admin_info_by_user{partner_hash}'
+		)
+	)
 
 	builder.adjust(1)
 
@@ -237,16 +333,146 @@ def create_change_status_markup(partner_hash: str):
 def create_partner_interactions_markup(partner_hash: str):
 	builder = InlineKeyboardBuilder()
 
-	builder.row(InlineKeyboardButton(text='💣 Mines', callback_data=f'admin_get_info_by_partner_mines_{partner_hash}'))
-	builder.row(InlineKeyboardButton(text='🚀 Lucky Jet', callback_data=f'admin_get_info_by_partner_luckyjet_{partner_hash}'))
-	builder.row(InlineKeyboardButton(text='🚗 Speed Cash', callback_data=f'admin_get_info_by_partner_speedcash_{partner_hash}'))
-	builder.row(InlineKeyboardButton(text='🎲 Coin Flip', callback_data=f'admin_get_info_by_partner_coinflip_{partner_hash}'))
-	builder.row(InlineKeyboardButton(text='Изменить процент дохода', callback_data=f'admin_change_percent_income_{partner_hash}'))
-	builder.row(InlineKeyboardButton(text='Изменить статус', callback_data=f'admin_change_status_{partner_hash}'))
-	builder.row(InlineKeyboardButton(text='Изменить баланс', callback_data=f'admin_change_balance_{partner_hash}'))
-	builder.row(InlineKeyboardButton(text='Дать возможность вывода', callback_data=f'admin_give_withdraw_{partner_hash}'))
-	builder.row(InlineKeyboardButton(text='Заблокировать', callback_data=f'admin_block_user_{partner_hash}'))
+	builder.row(
+		InlineKeyboardButton(
+			text='💣 Mines',
+			callback_data=f'admin_get_info_by_partner_mines_{partner_hash}',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='🚀 Lucky Jet',
+			callback_data=f'admin_get_info_by_partner_luckyjet_{partner_hash}',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='🚗 Speed Cash',
+			callback_data=f'admin_get_info_by_partner_speedcash_{partner_hash}',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='🎲 Coin Flip',
+			callback_data=f'admin_get_info_by_partner_coinflip_{partner_hash}',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='Изменить процент дохода',
+			callback_data=f'admin_set_percent_income_to_partner_{partner_hash}',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='Изменить статус', callback_data=f'admin_change_status_{partner_hash}'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='Изменить баланс', callback_data=f'admin_change_balance_{partner_hash}'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='Дать возможность вывода',
+			callback_data=f'admin_give_withdraw_{partner_hash}',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='Заблокировать', callback_data=f'admin_block_user_{partner_hash}'
+		)
+	)
 	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='adminpanel'))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_withdraw_period_markup(partner_hash):
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(
+			text='30 минут', callback_data=f'set_withdraw_period_{partner_hash}.30m'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='1 час', callback_data=f'set_withdraw_period_{partner_hash}.1h'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='2 часа', callback_data=f'set_withdraw_period_{partner_hash}.2h'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='3 часа', callback_data=f'set_withdraw_period_{partner_hash}.3h'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='6 часов', callback_data=f'set_withdraw_period_{partner_hash}.6h'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='12 часов', callback_data=f'set_withdraw_period_{partner_hash}.12h'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='1 сутки', callback_data=f'set_withdraw_period_{partner_hash}.1d'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='2 дня', callback_data=f'set_withdraw_period_{partner_hash}.2d'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='3 дня', callback_data=f'set_withdraw_period_{partner_hash}.3d'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='🔙 Назад', callback_data=f'admin_info_by_user{partner_hash}'
+		)
+	)
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_profile_partner_markup():
+	builder = InlineKeyboardBuilder()
+
+	builder.row(InlineKeyboardButton(text='💳️ Вывод Средств', callback_data='withdraw'))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_admin_give_withdraw_callback_back(partner_hash):
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(
+			text='Отмена', callback_data=f'admin_give_withdraw_{partner_hash}'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='🔙 Назад', callback_data=f'admin_info_by_user{partner_hash}'
+		)
+	)
 
 	builder.adjust(1)
 
@@ -296,7 +522,8 @@ def create_admin_balance_change_markup(partner_hash):
 
 	builder.row(
 		InlineKeyboardButton(
-			text='Поставить на паузу', callback_data=f'admin_freeze_partner_{partner_hash}'
+			text='Поставить на паузу',
+			callback_data=f'admin_freeze_partner_{partner_hash}',
 		),
 	)
 	builder.row(
@@ -312,7 +539,7 @@ def create_admin_balance_change_markup(partner_hash):
 
 def create_back_admin_info_markup(partner_hash):
 	builder = InlineKeyboardBuilder()
-	
+
 	builder.row(
 		InlineKeyboardButton(
 			text='🔙 Назад', callback_data=f'admin_info_by_user{partner_hash}'
@@ -329,7 +556,8 @@ def create_ok_or_cancel_balance_markup(partner_hash, new_balance):
 
 	builder.row(
 		InlineKeyboardButton(
-			text='Да', callback_data=f'admin_totally_change_balance_{partner_hash}.{new_balance}'
+			text='Да',
+			callback_data=f'admin_totally_change_balance_{partner_hash}.{new_balance}',
 		),
 	)
 	builder.row(

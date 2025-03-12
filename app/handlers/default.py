@@ -4,6 +4,7 @@ from typing import Dict
 
 from aiogram import F, Router
 from aiogram.enums import ParseMode
+from aiogram.filters import BaseFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, FSInputFile, InputMediaPhoto, Message
@@ -28,14 +29,19 @@ from app.loader import (
 )
 from app.utils.algorithms import is_valid_card
 
-only_confirmed = (
-	lambda call: users.get(call.from_user.id, {}).get('final', False) is True
-	or call.from_user.id in config.secrets.ADMINS_IDS
-)  # noqa: E731
-message_only_confirmed = (
-	lambda message: users.get(message.from_user.id, {}).get('final', False) is True
-	or message.from_user.id in config.secrets.ADMINS_IDS
-)  # noqa: E731
+
+class IsConfirmed(BaseFilter):
+	def _init__(self, *args, **kwargs) -> None:
+		pass
+
+	async def __call__(self, message: Message | CallbackQuery):
+		if (
+			users.get(message.from_user.id, {}).get('final', False) is True
+			or message.from_user.id in config.secrets.ADMINS_IDS
+		):
+			return True
+		return False
+
 
 default_router = Router()
 alerts = True
@@ -331,7 +337,7 @@ async def collect_stats(opts: dict):
 	}
 
 
-@default_router.callback_query(F.data == 'statistics', only_confirmed)
+@default_router.callback_query(F.data == 'statistics', IsConfirmed())
 async def statistics_callback(call: CallbackQuery):
 	result, code = await APIRequest.get('/base/stats')
 
@@ -433,8 +439,6 @@ async def statistics_callback(call: CallbackQuery):
 		partner = partners[0]['partners'][-1]
 
 		if not partner['approved']:
-			users[call.from_user.id] = users.get(call.from_user.id, {})
-			users[call.from_user.id]['final'] = False
 			await call.answer('Вы заблокированы')
 			return
 
@@ -622,7 +626,7 @@ async def statistics_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(F.data == 'statistics_mines', only_confirmed)
+@default_router.callback_query(F.data == 'statistics_mines', IsConfirmed())
 async def statistics_mines_callback(call: CallbackQuery):
 	result, code = await APIRequest.get('/base/stats')
 
@@ -804,9 +808,6 @@ async def statistics_mines_callback(call: CallbackQuery):
 		partner = partners[0]['partners'][-1]
 
 		if not partner['approved']:
-			print(partner)
-			users[call.from_user.id] = users.get(call.from_user.id, {})
-			users[call.from_user.id]['final'] = False
 			await call.answer('Вы заблокированы')
 			return
 
@@ -1009,7 +1010,7 @@ async def statistics_mines_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(F.data.startswith('referal'), only_confirmed)
+@default_router.callback_query(F.data.startswith('referal'), IsConfirmed())
 async def referal_callback(call: CallbackQuery):
 	if call.from_user.id in config.secrets.ADMINS_IDS:
 		messages = [
@@ -1026,6 +1027,11 @@ async def referal_callback(call: CallbackQuery):
 			'/partner/find', {'opts': {'tg_id': call.from_user.id}}
 		)
 		partner = partners[0]['partners'][-1]
+
+		if not partner['approved']:
+			await call.answer('Вы заблокированы')
+			return
+
 		messages = [
 			'Помогите своим друзьям стать частью нашей команды и начните зарабатывать вместе!\n',
 			'Мы ищем только мотивированных профессионалов, предпочтительно с опытом в арбитраже.\n\n<code>💰️ Условия реферальной программы могут меняться</code>\n',
@@ -1043,13 +1049,22 @@ async def referal_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(F.data.startswith('about_us'), only_confirmed)
+@default_router.callback_query(F.data.startswith('about_us'), IsConfirmed())
 async def about_uscallback(call: CallbackQuery):
 	messages = [
 		'Следите за нашими новостями и обновлениями на <a href="https://t.me/+W8_28FXJWXIxZTgy">канале SinWin</a>. Там вы найдете свежие новости и важные объявления для нашей команды.\n',
 		'Ваше мнение важно для нас! Мы всегда стремимся к совершенству, поэтому будем рады ваши вопросам, предложениям и отзывам.\n',
 		'Спасибо, что выбрали SinWin!',
 	]
+
+	partners = await APIRequest.post(
+		'/partner/find', {'opts': {'tg_id': call.from_user.id}}
+	)
+	partner = partners[0]['partners'][-1]
+
+	if not partner['approved']:
+		await call.answer('Вы заблокированы')
+		return
 
 	await call.message.edit_text(
 		'\n'.join(messages),
@@ -1058,7 +1073,7 @@ async def about_uscallback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(F.data.startswith('my_referals'), only_confirmed)
+@default_router.callback_query(F.data.startswith('my_referals'), IsConfirmed())
 async def referal_answer_callback(call: CallbackQuery):
 	partners = await APIRequest.post(
 		'/partner/find', {'opts': {'tg_id': call.from_user.id}}
@@ -1248,7 +1263,7 @@ def check_achievements_for_reload(
 	}
 
 
-@default_router.callback_query(F.data.startswith('reload_achievs'), only_confirmed)
+@default_router.callback_query(F.data.startswith('reload_achievs'), IsConfirmed())
 async def reload_achievs_callback(call: CallbackQuery):
 	partners = await APIRequest.post(
 		'/partner/find', {'opts': {'tg_id': call.from_user.id}}
@@ -1270,9 +1285,6 @@ async def reload_achievs_callback(call: CallbackQuery):
 		await call.answer('Вы еще не зарегистрированы в системе')
 
 	if not partner['approved']:
-		print(partner)
-		users[call.from_user.id] = users.get(call.from_user.id, {})
-		users[call.from_user.id]['final'] = False
 		await call.answer('Вы заблокированы')
 		return
 
@@ -1414,7 +1426,7 @@ async def reload_achievs_callback(call: CallbackQuery):
 		await call.answer('Вы не выполнили ни одного достижения')
 
 
-@default_router.callback_query(F.data.startswith('my_achievs'), only_confirmed)
+@default_router.callback_query(F.data.startswith('my_achievs'), IsConfirmed())
 async def my_achievs_callback(call: CallbackQuery):
 	partners = await APIRequest.post(
 		'/partner/find', {'opts': {'tg_id': call.from_user.id}}
@@ -1429,9 +1441,6 @@ async def my_achievs_callback(call: CallbackQuery):
 		await call.answer('Вы еще не зарегистрированы в системе')
 
 	if not partner['approved']:
-		print(partner)
-		users[call.from_user.id] = users.get(call.from_user.id, {})
-		users[call.from_user.id]['final'] = False
 		await call.answer('Вы заблокированы')
 		return
 
@@ -1537,7 +1546,7 @@ def check_achievements_var2(
 	return achievements
 
 
-@default_router.callback_query(F.data.startswith('achievements'), only_confirmed)
+@default_router.callback_query(F.data.startswith('achievements'), IsConfirmed())
 async def achievements_callback(call: CallbackQuery):
 	if call.data == 'achievements_false':
 		data = user_achievements.get(call.from_user.id, {})
@@ -1558,12 +1567,14 @@ async def achievements_callback(call: CallbackQuery):
 	if partner:
 		partner = partner[-1]
 	else:
-		await call.answer('Вы еще не зарегистрированы в системе')
+		if not partner['approved']:
+			await call.answer('Вы заблокированы')
+			return
+		else:
+			await call.answer('Вы еще не зарегистрированы в системе')
+			return
 
 	if not partner['approved']:
-		print(partner)
-		users[call.from_user.id] = users.get(call.from_user.id, {})
-		users[call.from_user.id]['final'] = False
 		await call.answer('Вы заблокированы')
 		return
 
@@ -1634,7 +1645,7 @@ async def achievements_callback(call: CallbackQuery):
 	messages = []
 
 
-@default_router.callback_query(F.data == 'record_creo', only_confirmed)
+@default_router.callback_query(F.data == 'record_creo', IsConfirmed())
 async def record_creo_callback(call: CallbackQuery):
 	messages = [
 		'В этих ботах вы можете легко записать креативы:\n',
@@ -1652,13 +1663,17 @@ async def record_creo_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(F.data == 'work', only_confirmed)
+@default_router.callback_query(F.data == 'work', IsConfirmed())
 async def work_callback(call: CallbackQuery):
 	try:
 		partners = await APIRequest.post(
 			'/partner/find', {'opts': {'tg_id': call.from_user.id}}
 		)
 		partner = partners[0]['partners'][-1]
+
+		if not partner['approved']:
+			await call.answer('Вы заблокированы')
+			return
 	except Exception:
 		messages = [
 			'💻️ WORK\n\n<b>ССЫЛКИ НА БОТОВ</b>\nMines - <code>https://t.me/IziMin_test_Bot</code>',
@@ -1687,7 +1702,7 @@ async def work_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(F.data.startswith('showmenu'), only_confirmed)
+@default_router.callback_query(F.data.startswith('showmenu'), IsConfirmed())
 async def showmenu_callback(call: CallbackQuery):
 	try:
 		await call.message.edit_text(
@@ -1704,7 +1719,7 @@ async def showmenu_callback(call: CallbackQuery):
 		)
 
 
-# @default_router.callback_query(F.data.startswith('admin_'), only_confirmed)
+# @default_router.callback_query(F.data.startswith('admin_'), IsConfirmed())
 # async def adminpanel_query_callback(call: CallbackQuery):
 # 	await call.message.edit_text(
 # 		'ЗАГЛУШКА', reply_markup=inline.create_back_markup('showmenu')
@@ -1762,7 +1777,7 @@ def get_top_workers_place_description(place: str):
 		return 'Ошибка при загрузке конфигурации. Обратитесь к администратору.'
 
 
-@default_router.callback_query(F.data == 'top_workers', only_confirmed)
+@default_router.callback_query(F.data == 'top_workers', IsConfirmed())
 async def top_workers_callback(call: CallbackQuery):
 	# 🥇🥈🥉🏅
 	result, code = await APIRequest.get('/base/stats?exclude=1')
@@ -1790,6 +1805,12 @@ async def top_workers_callback(call: CallbackQuery):
 		if user:
 			user = user[-1]
 			userp = user['partner_hash']
+
+			if not user['approved']:
+				users[call.from_user.id] = users.get(call.from_user.id, {})
+				users[call.from_user.id]['final'] = False
+				await call.answer('Вы заблокированы')
+				return
 		else:
 			await call.answer('Вы заблокированы')
 			return
@@ -1847,7 +1868,7 @@ async def top_workers_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(F.data == 'withdraws_history', only_confirmed)
+@default_router.callback_query(F.data == 'withdraws_history', IsConfirmed())
 async def withdraws_history_callback(call: CallbackQuery):
 	# 🟢🟡⚪️
 	result = await APIRequest.post(
@@ -1890,7 +1911,7 @@ async def withdraws_history_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(F.data == 'statistics_online', only_confirmed)
+@default_router.callback_query(F.data == 'statistics_online', IsConfirmed())
 async def statistics_online_callback(call: CallbackQuery):
 	# ✨📊💰️🎮️
 	messages = [
@@ -1945,7 +1966,7 @@ def get_status_conditions(
 	return statuses_items, not any(val is False for val in statuses.values())
 
 
-@default_router.callback_query(F.data == 'status_levels', only_confirmed)
+@default_router.callback_query(F.data == 'status_levels', IsConfirmed())
 async def status_levels_callback(call: CallbackQuery):
 	if call.from_user.id in config.secrets.ADMINS_IDS:
 		await call.answer('Для просмотра условий перехода обратитесь к админпанели')
@@ -2105,7 +2126,7 @@ async def status_levels_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(F.data == 'status', only_confirmed)
+@default_router.callback_query(F.data == 'status', IsConfirmed())
 async def status_callback(call: CallbackQuery):
 	# ❌✅🏆️📊🎯💼💰️
 	result, code = await APIRequest.get('/base/stats')
@@ -2125,6 +2146,10 @@ async def status_callback(call: CallbackQuery):
 
 		if partner:
 			partner = partner[-1]
+
+			if not partner['approved']:
+				await call.answer('Вы заблокированы')
+				return
 		else:
 			await call.answer('Доступ запрещен')
 			return
@@ -2347,7 +2372,12 @@ async def status_callback(call: CallbackQuery):
 			},
 		}
 
-		showed_percent = partner["showed_percent"] if partner["showed_percent"] != "default" else get_percent_by_status(partner["status"]) + partner["additional_percent"] * 100
+		showed_percent = (
+			partner['showed_percent']
+			if partner['showed_percent'] != 'default'
+			else get_percent_by_status(partner['status'])
+			+ partner['additional_percent'] * 100
+		)
 
 		messages = [
 			f'🏆️ Ваш текущий статус: {partner["status"]}',
@@ -2513,7 +2543,12 @@ API за все время: {api_count}
 			and partner['status'] != 'мастер'
 			and partner['status'] != 'легенда'
 		):
-			showed_percent = partner["showed_percent"] if partner["showed_percent"] != "default" else get_percent_by_status(get_next_level(partner["status"])) + partner["additional_percent"] * 100
+			showed_percent = (
+				partner['showed_percent']
+				if partner['showed_percent'] != 'default'
+				else get_percent_by_status(get_next_level(partner['status']))
+				+ partner['additional_percent'] * 100
+			)
 			await call.message.edit_text(
 				f"""
 ✅ Вы соответствуете условиям для перехода на следующий уровень!
@@ -2941,7 +2976,7 @@ API за все время: {api_count}
 			)
 
 
-@default_router.callback_query(F.data == 'profile', only_confirmed)
+@default_router.callback_query(F.data == 'profile', IsConfirmed())
 async def profile_callback(call: CallbackQuery):
 	if call.from_user.id in config.secrets.ADMINS_IDS:
 		balance, status_code = await APIRequest.get('/base/admin_balance')
@@ -2966,9 +3001,6 @@ async def profile_callback(call: CallbackQuery):
 	partner = partners[0]['partners'][-1]
 
 	if not partner['approved']:
-		print(partner)
-		users[call.from_user.id] = users.get(call.from_user.id, {})
-		users[call.from_user.id]['final'] = False
 		await call.answer('Вы заблокированы')
 		return
 
@@ -2985,7 +3017,12 @@ async def profile_callback(call: CallbackQuery):
 	)
 	cpartners = cpartners[0]['partners']
 
-	showed_percent = partner["showed_percent"] if partner["showed_percent"] != "default" else get_percent_by_status(partner["status"]) + partner["additional_percent"] * 100
+	showed_percent = (
+		partner['showed_percent']
+		if partner['showed_percent'] != 'default'
+		else get_percent_by_status(partner['status'])
+		+ partner['additional_percent'] * 100
+	)
 
 	messages = [
 		f'<b>Ваш профиль</b>\n\n🆔 Ваш ID: {call.from_user.id}',
@@ -3005,7 +3042,7 @@ async def profile_callback(call: CallbackQuery):
 	)
 
 
-@default_router.callback_query(F.data == 'withdraw', only_confirmed)
+@default_router.callback_query(F.data == 'withdraw', IsConfirmed())
 async def withdraw_callback(call: CallbackQuery):
 	partners = await APIRequest.post(
 		'/partner/find', {'opts': {'tg_id': call.from_user.id}}
@@ -3042,6 +3079,31 @@ async def withdraw_callback(call: CallbackQuery):
 		'∟ Плавающие лимиты, смотрите при выводе от 1 500 ₽ до 5 000 000 ₽\n',
 	]
 
+	partner['time_to_withdraw'] = datetime.strptime(
+		partner['time_to_withdraw'], '%Y-%m-%d %H:%M:%S'
+	)
+
+	if (
+		partner['time_to_withdraw'] is None
+		or partner['time_to_withdraw'] < datetime.now()
+	):
+		if datetime.now().weekday() != 3:
+			messages.append('Сегодня вы не можете вывести деньги. Подождите среды')
+			try:
+				await call.message.edit_text(
+					'\n'.join(messages),
+					parse_mode=ParseMode.HTML,
+					reply_markup=inline.create_back_markup('profile'),
+				)
+			except Exception:
+				await call.message.delete()
+				await call.message.edit_text(
+					'\n'.join(messages),
+					parse_mode=ParseMode.HTML,
+					reply_markup=inline.create_back_markup('profile'),
+				)
+			return
+
 	try:
 		await call.message.edit_text(
 			'\n'.join(messages),
@@ -3057,7 +3119,7 @@ async def withdraw_callback(call: CallbackQuery):
 		)
 
 
-@default_router.callback_query(F.data == 'withdraw_crypto', only_confirmed)
+@default_router.callback_query(F.data == 'withdraw_crypto', IsConfirmed())
 async def withdraw_crypto_callback(call: CallbackQuery, state: FSMContext):
 	await state.clear()
 	messages = [
@@ -3092,7 +3154,7 @@ async def withdraw_crypto_callback(call: CallbackQuery, state: FSMContext):
 @default_router.callback_query(
 	F.data.startswith('crypto_set_withdraw_'),
 	CryptoWithdrawGroup.withdraw_card,
-	only_confirmed,
+	IsConfirmed,
 )
 async def crypto_set_withdraw_type(call: CallbackQuery, state: FSMContext):
 	crypto_type = call.data.replace('crypto_set_withdraw_', '').lower()
@@ -3111,9 +3173,6 @@ async def crypto_set_withdraw_type(call: CallbackQuery, state: FSMContext):
 	partner = partners[0]['partners'][-1]
 
 	if not partner['approved']:
-		print(partner)
-		users[call.from_user.id] = users.get(call.from_user.id, {})
-		users[call.from_user.id]['final'] = False
 		await call.answer('Вы заблокированы')
 		return
 
@@ -3139,7 +3198,7 @@ async def crypto_set_withdraw_type(call: CallbackQuery, state: FSMContext):
 	# await state.set_state(CryptoWithdrawGroup.withdraw_sum)
 
 
-@default_router.message(F.text, CryptoWithdrawGroup.address, message_only_confirmed)
+@default_router.message(F.text, CryptoWithdrawGroup.address, IsConfirmed())
 async def withdraw_crypto_address(message: Message, state: FSMContext):
 	partners = await APIRequest.post(
 		'/partner/find', {'opts': {'tg_id': message.from_user.id}}
@@ -3147,9 +3206,6 @@ async def withdraw_crypto_address(message: Message, state: FSMContext):
 	partner = partners[0]['partners'][-1]
 
 	if not partner['approved']:
-		print(partner)
-		users[message.from_user.id] = users.get(message.from_user.id, {})
-		users[message.from_user.id]['final'] = False
 		await message.answer('Вы заблокированы')
 		return
 
@@ -3174,9 +3230,7 @@ async def withdraw_crypto_address(message: Message, state: FSMContext):
 	await state.set_state(CryptoWithdrawGroup.withdraw_sum)
 
 
-@default_router.message(
-	F.text, CryptoWithdrawGroup.withdraw_sum, message_only_confirmed
-)
+@default_router.message(F.text, CryptoWithdrawGroup.withdraw_sum, IsConfirmed)
 async def withdraw_crypto_message(message: Message, state: FSMContext):
 	user = users.get(message.chat.id, {})
 
@@ -3235,7 +3289,7 @@ async def withdraw_crypto_message(message: Message, state: FSMContext):
 @default_router.callback_query(
 	F.data == 'user_approve_crypto_withdraw',
 	CryptoWithdrawGroup.approved,
-	message_only_confirmed,
+	IsConfirmed,
 )
 async def user_approve_crypto_withdraw(call: CallbackQuery, state: FSMContext):
 	data = await state.get_data()
@@ -3313,7 +3367,7 @@ Id Вывода: {transac['preview_id']}
 		)
 
 
-@default_router.callback_query(F.data == 'withdraw_card', only_confirmed)
+@default_router.callback_query(F.data == 'withdraw_card', IsConfirmed())
 async def withdraw_card_callback(call: CallbackQuery, state: FSMContext):
 	await state.clear()
 
@@ -3328,9 +3382,6 @@ async def withdraw_card_callback(call: CallbackQuery, state: FSMContext):
 	partner = partners[0]['partners'][-1]
 
 	if not partner['approved']:
-		print(partner)
-		users[call.from_user.id] = users.get(call.from_user.id, {})
-		users[call.from_user.id]['final'] = False
 		await call.answer('Вы заблокированы')
 		return
 
@@ -3347,7 +3398,7 @@ async def withdraw_card_callback(call: CallbackQuery, state: FSMContext):
 	await state.set_state(CardWithdrawGroup.withdraw_sum)
 
 
-@default_router.message(F.text, CardWithdrawGroup.withdraw_sum, message_only_confirmed)
+@default_router.message(F.text, CardWithdrawGroup.withdraw_sum, IsConfirmed())
 async def withdraw_card_message(message: Message, state: FSMContext):
 	user = users.get(message.chat.id, {})
 
@@ -3401,7 +3452,7 @@ async def withdraw_card_message(message: Message, state: FSMContext):
 			await state.set_state(CardWithdrawGroup.withdraw_card)
 
 
-@default_router.message(F.text, CardWithdrawGroup.withdraw_card, message_only_confirmed)
+@default_router.message(F.text, CardWithdrawGroup.withdraw_card, IsConfirmed())
 async def withdraw_withdraw_card_message(message: Message, state: FSMContext):
 	text = message.text
 	user = users.get(message.chat.id, {})
@@ -3434,7 +3485,7 @@ async def withdraw_withdraw_card_message(message: Message, state: FSMContext):
 @default_router.callback_query(
 	F.data == 'user_approve_card_withdraw',
 	CardWithdrawGroup.approved,
-	message_only_confirmed,
+	IsConfirmed,
 )
 async def user_approve_card_withdraw(call: CallbackQuery, state: FSMContext):
 	data = await state.get_data()
@@ -3913,7 +3964,7 @@ Id Вывода: {transaction['preview_id']}
 ############ STEAM
 
 
-@default_router.callback_query(F.data == 'withdraw_steam', message_only_confirmed)
+@default_router.callback_query(F.data == 'withdraw_steam', IsConfirmed())
 async def withdraw_steam_callback(call: CallbackQuery, state: FSMContext):
 	await state.clear()
 
@@ -3928,9 +3979,6 @@ async def withdraw_steam_callback(call: CallbackQuery, state: FSMContext):
 	partner = partners[0]['partners'][-1]
 
 	if not partner['approved']:
-		print(partner)
-		users[call.from_user.id] = users.get(call.from_user.id, {})
-		users[call.from_user.id]['final'] = False
 		await call.answer('Вы заблокированы')
 		return
 
@@ -3947,7 +3995,7 @@ async def withdraw_steam_callback(call: CallbackQuery, state: FSMContext):
 	await state.set_state(SteamWithdrawGroup.withdraw_sum)
 
 
-@default_router.message(F.text, SteamWithdrawGroup.withdraw_sum, message_only_confirmed)
+@default_router.message(F.text, SteamWithdrawGroup.withdraw_sum, IsConfirmed())
 async def withdraw_steam_message(message: Message, state: FSMContext):
 	user = users.get(message.chat.id, {})
 
@@ -4002,9 +4050,7 @@ async def withdraw_steam_message(message: Message, state: FSMContext):
 			await state.set_state(SteamWithdrawGroup.withdraw_card)
 
 
-@default_router.message(
-	F.text, SteamWithdrawGroup.withdraw_card, message_only_confirmed
-)
+@default_router.message(F.text, SteamWithdrawGroup.withdraw_card, IsConfirmed)
 async def withdraw_withdraw_steam_message(message: Message, state: FSMContext):
 	text = message.text
 
@@ -4020,7 +4066,7 @@ async def withdraw_withdraw_steam_message(message: Message, state: FSMContext):
 @default_router.callback_query(
 	F.data == 'user_approve_steam_withdraw',
 	SteamWithdrawGroup.approved,
-	message_only_confirmed,
+	IsConfirmed,
 )
 async def user_approve_steam_withdraw(call: CallbackQuery, state: FSMContext):
 	data = await state.get_data()
@@ -4101,7 +4147,7 @@ Steam логин: <code>{data['withdraw_card']}</code>""",
 ############## PHONE NUMBER
 
 
-@default_router.callback_query(F.data == 'withdraw_phone', message_only_confirmed)
+@default_router.callback_query(F.data == 'withdraw_phone', IsConfirmed())
 async def withdraw_phone_callback(call: CallbackQuery, state: FSMContext):
 	await state.clear()
 
@@ -4116,9 +4162,6 @@ async def withdraw_phone_callback(call: CallbackQuery, state: FSMContext):
 	partner = partners[0]['partners'][-1]
 
 	if not partner['approved']:
-		print(partner)
-		users[call.from_user.id] = users.get(call.from_user.id, {})
-		users[call.from_user.id]['final'] = False
 		await call.answer('Вы заблокированы')
 		return
 
@@ -4135,9 +4178,7 @@ async def withdraw_phone_callback(call: CallbackQuery, state: FSMContext):
 	await state.set_state(PhonenumberWithdrawGroup.withdraw_sum)
 
 
-@default_router.message(
-	F.text, PhonenumberWithdrawGroup.withdraw_sum, message_only_confirmed
-)
+@default_router.message(F.text, PhonenumberWithdrawGroup.withdraw_sum, IsConfirmed)
 async def withdraw_phone_message(message: Message, state: FSMContext):
 	user = users.get(message.chat.id, {})
 
@@ -4192,9 +4233,7 @@ async def withdraw_phone_message(message: Message, state: FSMContext):
 			await state.set_state(PhonenumberWithdrawGroup.withdraw_card)
 
 
-@default_router.message(
-	F.text, PhonenumberWithdrawGroup.withdraw_card, message_only_confirmed
-)
+@default_router.message(F.text, PhonenumberWithdrawGroup.withdraw_card, IsConfirmed)
 async def withdraw_withdraw_phone_message(message: Message, state: FSMContext):
 	text = message.text
 
@@ -4210,7 +4249,7 @@ async def withdraw_withdraw_phone_message(message: Message, state: FSMContext):
 @default_router.callback_query(
 	F.data == 'user_approve_phone_withdraw',
 	PhonenumberWithdrawGroup.approved,
-	message_only_confirmed,
+	IsConfirmed,
 )
 async def user_approve_phone_withdraw(call: CallbackQuery, state: FSMContext):
 	data = await state.get_data()
@@ -4291,7 +4330,7 @@ Id Вывода: {transac['preview_id']}
 ########## FK Wallet
 
 
-@default_router.callback_query(F.data == 'withdraw_fkwallet', message_only_confirmed)
+@default_router.callback_query(F.data == 'withdraw_fkwallet', IsConfirmed())
 async def withdraw_fkwallet_callback(call: CallbackQuery, state: FSMContext):
 	await state.clear()
 
@@ -4306,9 +4345,6 @@ async def withdraw_fkwallet_callback(call: CallbackQuery, state: FSMContext):
 	partner = partners[0]['partners'][-1]
 
 	if not partner['approved']:
-		print(partner)
-		users[call.from_user.id] = users.get(call.from_user.id, {})
-		users[call.from_user.id]['final'] = False
 		await call.answer('Вы заблокированы')
 		return
 
@@ -4325,9 +4361,7 @@ async def withdraw_fkwallet_callback(call: CallbackQuery, state: FSMContext):
 	await state.set_state(FKWalletWithdrawGroup.withdraw_sum)
 
 
-@default_router.message(
-	F.text, FKWalletWithdrawGroup.withdraw_sum, message_only_confirmed
-)
+@default_router.message(F.text, FKWalletWithdrawGroup.withdraw_sum, IsConfirmed)
 async def withdraw_fkwallet_message(message: Message, state: FSMContext):
 	user = users.get(message.chat.id, {})
 
@@ -4382,9 +4416,7 @@ async def withdraw_fkwallet_message(message: Message, state: FSMContext):
 			await state.set_state(FKWalletWithdrawGroup.withdraw_card)
 
 
-@default_router.message(
-	F.text, FKWalletWithdrawGroup.withdraw_card, message_only_confirmed
-)
+@default_router.message(F.text, FKWalletWithdrawGroup.withdraw_card, IsConfirmed)
 async def withdraw_withdraw_fkwallet_message(message: Message, state: FSMContext):
 	text = message.text
 
@@ -4400,7 +4432,7 @@ async def withdraw_withdraw_fkwallet_message(message: Message, state: FSMContext
 @default_router.callback_query(
 	F.data == 'user_approve_fkwallet_withdraw',
 	FKWalletWithdrawGroup.approved,
-	message_only_confirmed,
+	IsConfirmed,
 )
 async def user_approve_fkwallet_withdraw(call: CallbackQuery, state: FSMContext):
 	data = await state.get_data()
@@ -4481,7 +4513,7 @@ Id Вывода: {transac['preview_id']}
 ########## 🌸 Piastrix
 
 
-@default_router.callback_query(F.data == 'withdraw_piastrix', message_only_confirmed)
+@default_router.callback_query(F.data == 'withdraw_piastrix', IsConfirmed())
 async def withdraw_piastrix_callback(call: CallbackQuery, state: FSMContext):
 	await state.clear()
 
@@ -4496,9 +4528,6 @@ async def withdraw_piastrix_callback(call: CallbackQuery, state: FSMContext):
 	partner = partners[0]['partners'][-1]
 
 	if not partner['approved']:
-		print(partner)
-		users[call.from_user.id] = users.get(call.from_user.id, {})
-		users[call.from_user.id]['final'] = False
 		await call.answer('Вы заблокированы')
 		return
 
@@ -4515,9 +4544,7 @@ async def withdraw_piastrix_callback(call: CallbackQuery, state: FSMContext):
 	await state.set_state(PiastrixWithdrawGroup.withdraw_sum)
 
 
-@default_router.message(
-	F.text, PiastrixWithdrawGroup.withdraw_sum, message_only_confirmed
-)
+@default_router.message(F.text, PiastrixWithdrawGroup.withdraw_sum, IsConfirmed)
 async def withdraw_piastrix_message(message: Message, state: FSMContext):
 	user = users.get(message.chat.id, {})
 
@@ -4572,9 +4599,7 @@ async def withdraw_piastrix_message(message: Message, state: FSMContext):
 			await state.set_state(PiastrixWithdrawGroup.withdraw_card)
 
 
-@default_router.message(
-	F.text, PiastrixWithdrawGroup.withdraw_card, message_only_confirmed
-)
+@default_router.message(F.text, PiastrixWithdrawGroup.withdraw_card, IsConfirmed)
 async def withdraw_withdraw_piastrix_message(message: Message, state: FSMContext):
 	text = message.text
 
@@ -4590,7 +4615,7 @@ async def withdraw_withdraw_piastrix_message(message: Message, state: FSMContext
 @default_router.callback_query(
 	F.data == 'user_approve_piastrix_withdraw',
 	PiastrixWithdrawGroup.approved,
-	message_only_confirmed,
+	IsConfirmed,
 )
 async def user_approve_piastrix_withdraw(call: CallbackQuery, state: FSMContext):
 	data = await state.get_data()
