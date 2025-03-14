@@ -212,20 +212,13 @@ def create_percent_input_markup(partner_hash: str):
 
 def get_markup_back_and_cancel_status(partner_hash):
 	builder = InlineKeyboardBuilder()
-
-	builder.row(
-		InlineKeyboardButton(
-			text='Отмена',
-			callback_data=f'admin_set_percent_income_to_partner_{partner_hash}',
-		),
-	)
 	builder.row(
 		InlineKeyboardButton(
 			text='🔙 Назад', callback_data=f'admin_info_by_user{partner_hash}'
 		),
 	)
 
-	builder.adjust(2)
+	builder.adjust(1)
 
 	return builder.as_markup()
 
@@ -245,7 +238,64 @@ def get_markup_back_and_cancel_perc_inc(partner_hash):
 		),
 	)
 
-	builder.adjust(2)
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_admin_statistics_panel_menu():
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(
+			text='💣 Mines', callback_data='admin_statistics_panel_mines'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='🚀 Lucky Jet', callback_data='admin_statistics_panel_luckyjet'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='🚗 Speed Cash', callback_data='admin_statistics_panel_speedcash'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='🎲 Coin Flip', callback_data='admin_statistics_panel_coinflip'
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='За другой период',
+			callback_data='admin_statistics_panel_choose_period',
+		)
+	)
+	builder.row(
+		InlineKeyboardButton(
+			text='Статистика партнеров', callback_data='admin_statistics_panel_partners'
+		)
+	)
+	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='adminpanel'))
+
+	builder.adjust(1)
+
+	return builder.as_markup()
+
+
+def create_admin_statistics_panel_menu_game():
+	builder = InlineKeyboardBuilder()
+
+	builder.row(
+		InlineKeyboardButton(
+			text='За другой период',
+			callback_data='admin_statistics_panel_choose_period.Mines',
+		)
+	)
+	builder.row(InlineKeyboardButton(text='🔙 Назад', callback_data='admin_statistics'))
+
+	builder.adjust(1)
 
 	return builder.as_markup()
 

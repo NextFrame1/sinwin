@@ -88,7 +88,24 @@ async def cmd_start(message: Message):
 		partner = None
 
 	if partner:
-		users[message.from_user.id] = {'final': True, 'count': 0}
+		users[message.from_user.id] = {'final': False, 'count': 0}
+
+		if partner['approved']:
+			users[message.from_user.id] = {'final': True, 'count': 0}
+			await message.answer(
+				'🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!',
+				parse_mode=ParseMode.HTML,
+				reply_markup=inlinem.create_main_menu_markup(message.from_user.id),
+			)
+			return
+
+		if not partner['approved']:
+			await message.answer(
+				'Вы не зарегистрированы в боте, для продолжения Вам необходимо подать заявку. Это займет менее 5 минут.',
+				parse_mode=ParseMode.HTML,
+				reply_markup=inline.create_start_markup(),
+			)
+			return
 
 	if (
 		users.get(message.from_user.id) is not None
@@ -346,16 +363,6 @@ async def approve_user(call: CallbackQuery):
 		if users.get(tid, {}).get('final', False):
 			return
 
-		partners = await APIRequest.post('/partner/find', {'opts': {'tg_id': str(tid)}})
-		partner = partners[0]['partners']
-
-		if partner:
-			partner = partner[-1]
-			users[tid]['final'] = True
-			partner['approved'] = True
-			await APIRequest.post('/partner/update', {**partner})
-			return
-
 		users_data = users.get(tid, {})
 		data = users_data.get('data', {})
 
@@ -382,6 +389,35 @@ async def approve_user(call: CallbackQuery):
 			'tg_id': str(tid),
 			'showed_percent': 'default',
 		}
+
+		partners = await APIRequest.post('/partner/find', {'opts': {'tg_id': str(tid)}})
+		partner = partners[0]['partners']
+
+		if partner:
+			partner = partner[-1]
+
+			users[tid]['final'] = True
+			partner['approved'] = True
+			partner['number_phone'] = str(data.get('number_phone'))
+			partner['fullname'] = str(data.get('fullname'))
+			partner['username'] = str(data.get('username'))
+			partner['arbitration_experience'] = (
+				1 if data.get('experience_status') == 'Да' else 0
+			)
+			partner['experience_time'] = (
+				data.get('experience_time')
+				if data.get('experience_status') == 'Да'
+				else 'Отстутствует'
+			)
+			partner['age'] = int(''.join(data.get('name').split(' ')[1:]))
+
+			await APIRequest.post('/partner/update', {**partner})
+			await bot.send_message(
+				chat_id=tid,
+				text='✅ Администратор принял вашу заявку ✅',
+				reply_markup=inline.get_show_menu_markup(),
+			)
+			return
 
 		result, status_code = await APIRequest.post('/partner/create', data_creation)
 

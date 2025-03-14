@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from random import randint
-from typing import Dict
+from typing import Dict, Union
 
 from aiogram import F, Router
 from aiogram.enums import ParseMode
@@ -31,10 +31,12 @@ from app.utils.algorithms import is_valid_card
 
 
 class IsConfirmed(BaseFilter):
-	def _init__(self, *args, **kwargs) -> None:
-		pass
+	def __init__(self, chat_type: Union[str, list] = None) -> None:
+		self.chat_type = chat_type
 
-	async def __call__(self, message: Message | CallbackQuery):
+	async def __call__(
+		self, message: Message | CallbackQuery, state: FSMContext = None
+	) -> bool:
 		if (
 			users.get(message.from_user.id, {}).get('final', False) is True
 			or message.from_user.id in config.secrets.ADMINS_IDS
@@ -3079,15 +3081,16 @@ async def withdraw_callback(call: CallbackQuery):
 		'∟ Плавающие лимиты, смотрите при выводе от 1 500 ₽ до 5 000 000 ₽\n',
 	]
 
-	partner['time_to_withdraw'] = datetime.strptime(
-		partner['time_to_withdraw'], '%Y-%m-%d %H:%M:%S'
-	)
+	if partner['time_to_withdraw'] is not None:
+		partner['time_to_withdraw'] = datetime.strptime(
+			partner['time_to_withdraw'], '%Y-%m-%d %H:%M:%S'
+		)
 
-	if (
-		partner['time_to_withdraw'] is None
-		or partner['time_to_withdraw'] < datetime.now()
+	if partner['time_to_withdraw'] is None or (
+		isinstance(partner['time_to_withdraw'], datetime)
+		and partner['time_to_withdraw'] < datetime.now()
 	):
-		if datetime.now().weekday() != 3:
+		if datetime.now().weekday() + 1 != 3:
 			messages.append('Сегодня вы не можете вывести деньги. Подождите среды')
 			try:
 				await call.message.edit_text(
@@ -4695,7 +4698,7 @@ Id Вывода: {transac['preview_id']}
 
 ############################################
 ############## DEFAULT ROUTER ##############
-###########################################
+############################################
 
 
 @default_router.message(F.text)
@@ -4703,13 +4706,6 @@ async def text_handler(message: Message):
 	user = users.get(message.chat.id, {})
 	await message.delete()
 
-	if user.get('final', False):
-		await message.answer(
-			'🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!',
-			parse_mode=ParseMode.HTML,
-			reply_markup=inline.create_main_menu_markup(message.from_user.id),
-		)
-		return
 	partners = await APIRequest.post(
 		'/partner/find', {'opts': {'tg_id': message.from_user.id}}
 	)
@@ -4719,8 +4715,20 @@ async def text_handler(message: Message):
 		partner = partner[-1]
 
 		if not partner['approved']:
+			if not user.get('final', False):
+				return
+
 			await message.answer(
 				'Вы не зарегистрированы в боте, для продолжения Вам необходимо подать заявку. Это займет менее 5 минут.',
 				parse_mode=ParseMode.HTML,
 				reply_markup=inline.create_start_markup(),
 			)
+			return
+
+	if user.get('final', False):
+		await message.answer(
+			'🏠️ <b>Приветствуем!</b>\n\nСпасибо, что выбрали SinWin!',
+			parse_mode=ParseMode.HTML,
+			reply_markup=inline.create_main_menu_markup(message.from_user.id),
+		)
+		return

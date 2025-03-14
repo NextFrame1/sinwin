@@ -2540,6 +2540,440 @@ async def show_created_promocodes_callback(call: CallbackQuery):
 
 
 ################################################################################
+################################## Статистика ##################################
+################################################################################
+
+
+@admin_router.callback_query(F.data == 'admin_statistics_panel_partners')
+async def admin_statistics_panel_partners_callback(call: CallbackQuery):
+	result, code = await APIRequest.get('/base/stats')
+
+	stats = result['data']
+
+	data = await collect_stats({})
+
+	today_firstdeps = len([dep['amount'] for dep in stats['today']['firstdep']])
+	yesterday_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['yesterday']['firstdep']
+			if dep['partner_hash'] != 'self'
+		]
+	)
+	last_week_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['last_week']['firstdep']
+			if dep['partner_hash'] != 'self'
+		]
+	)
+	last_month_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['last_month']['firstdep']
+			if dep['partner_hash'] != 'self'
+		]
+	)
+
+	today_deps = sum(
+		[
+			dep['amount']
+			for dep in stats['today']['dep']
+			if dep['partner_hash'] != 'self'
+		]
+	) + sum(
+		[
+			dep['amount']
+			for dep in stats['today']['firstdep']
+			if dep['partner_hash'] != 'self'
+		]
+	)
+	yesterday_deps = sum(
+		[
+			dep['amount']
+			for dep in stats['yesterday']['dep']
+			if dep['partner_hash'] != 'self'
+		]
+	) + sum(
+		[
+			dep['amount']
+			for dep in stats['yesterday']['firstdep']
+			if dep['partner_hash'] != 'self'
+		]
+	)
+	last_week_deps = sum([dep['amount'] for dep in stats['last_week']['dep']]) + sum(
+		[
+			dep['amount']
+			for dep in stats['last_week']['firstdep']
+			if dep['partner_hash'] != 'self'
+		]
+	)
+	last_month_deps = sum([dep['amount'] for dep in stats['last_month']['dep']]) + sum(
+		[
+			dep['amount']
+			for dep in stats['last_month']['firstdep']
+			if dep['partner_hash'] != 'self'
+		]
+	)
+
+	today_income = sum(
+		[
+			dep['income']
+			for dep in stats['today']['income']
+			if dep['partner_hash'] != 'self'
+		]
+	)
+	yesterday_income = sum(
+		[
+			dep['income']
+			for dep in stats['yesterday']['income']
+			if dep['partner_hash'] != 'self'
+		]
+	)
+	last_week_income = sum(
+		[
+			dep['income']
+			for dep in stats['last_week']['income']
+			if dep['partner_hash'] != 'self'
+		]
+	)
+	last_month_income = sum(
+		[
+			dep['income']
+			for dep in stats['last_month']['income']
+			if dep['partner_hash'] != 'self'
+		]
+	)
+
+	alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+	other_dates_firstdep = [info for name, info in stats.items() if name == 'firstdep']
+	others_firstdep = len([dep['x'] for dep in other_dates_firstdep])
+
+	alltime_firstdeps = (
+		others_firstdep
+		+ today_firstdeps
+		+ yesterday_firstdeps
+		+ last_week_firstdeps
+		+ last_month_firstdeps
+	)
+	alltime_income = (
+		today_income + yesterday_income + last_week_income + last_month_income
+	)
+
+	balance, status_code = await APIRequest.get('/base/admin_balance')
+
+	signals_gens = [
+		[info[k] for k, _ in info.items()] for _, info in result['signals'].items()
+	]
+	signals_gens = sum(sum(x) for x in signals_gens)
+
+	api_count = sum([apinum for partnerhash, apinum in result['api_count'].items()])
+
+	partners = await APIRequest.post('/partner/find', {'opts': {'approved': True}})
+	partners = partners[0]['partners']
+
+	total_balance = sum([partner['balance'] for partner in partners])
+
+	transactions, status = await APIRequest.post(
+		'/transaction/find', {'opts': {'approved': True}}
+	)
+
+	transactions = transactions['transactions']
+
+	transac_total_balance = []
+
+	for transac in transactions:
+		regdate = datetime.strptime(
+			transac['register_date'], '%Y-%m-%dT%H:%M:%S'
+		).date()
+		curr_date = datetime.now().date()
+
+		if regdate == curr_date:
+			transac_total_balance.append(transac['amount'])
+
+	transac_total_balance = sum(transac_total_balance)
+
+	await call.message.edit_text(
+		f"""
+┌ Баланс Партнерки: {balance}
+├ Пользователей в партнерки всего: {len(partners)}
+├ Баланс всех пользователей: {total_balance}
+└ Поставлено на вывод ({datetime.now().strftme('%Y/%m/%d %H:%M')}): {transac_total_balance}
+
+┌ Доход ботов: {alltime_income}
+├ Первые депозиты: {alltime_firstdeps}
+├ Api: {api_count}
+└ Сгенерировано сигналов: {signals_gens}
+
+Доход ботов за сегодня: {today_income}
+├ Доход ботов за вчера: (n
+├ Доход ботов за неделю: n
+└ Доход ботов за месяц: n
+
+Пользователей в партнерки за сегодня: n
+├ Пользователей в партнерки за вчера: n
+├ Пользователей в партнерки за неделю: n
+└ Пользователей в партнерки за месяц: n
+
+Баланс всех пользователей за сегодня: n
+├ Баланс всех пользователей за вчера: n
+├ Баланс всех пользователей за неделю: n
+└ Баланс всех пользователей за месяц: n
+"""
+	)
+
+
+@admin_router.callback_query(F.data == 'admin_statistics')
+async def admin_statistics_callback_panel(call: CallbackQuery):
+	result, code = await APIRequest.get('/base/stats')
+
+	stats = result['data']
+
+	data = await collect_stats({})
+
+	today_firstdeps = len([dep['amount'] for dep in stats['today']['firstdep']])
+	yesterday_firstdeps = len([dep['amount'] for dep in stats['yesterday']['firstdep']])
+	last_week_firstdeps = len([dep['amount'] for dep in stats['last_week']['firstdep']])
+	last_month_firstdeps = len(
+		[dep['amount'] for dep in stats['last_month']['firstdep']]
+	)
+
+	today_deps = sum([dep['amount'] for dep in stats['today']['dep']]) + sum(
+		[dep['amount'] for dep in stats['today']['firstdep']]
+	)
+	yesterday_deps = sum([dep['amount'] for dep in stats['yesterday']['dep']]) + sum(
+		[dep['amount'] for dep in stats['yesterday']['firstdep']]
+	)
+	last_week_deps = sum([dep['amount'] for dep in stats['last_week']['dep']]) + sum(
+		[dep['amount'] for dep in stats['last_week']['firstdep']]
+	)
+	last_month_deps = sum([dep['amount'] for dep in stats['last_month']['dep']]) + sum(
+		[dep['amount'] for dep in stats['last_month']['firstdep']]
+	)
+
+	today_income = sum([dep['income'] for dep in stats['today']['income']])
+	yesterday_income = sum([dep['income'] for dep in stats['yesterday']['income']])
+	last_week_income = sum([dep['income'] for dep in stats['last_week']['income']])
+	last_month_income = sum([dep['income'] for dep in stats['last_month']['income']])
+
+	alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+	other_dates_firstdep = [info for name, info in stats.items() if name == 'firstdep']
+	others_firstdep = len([dep['x'] for dep in other_dates_firstdep])
+
+	alltime_firstdeps = (
+		others_firstdep
+		+ today_firstdeps
+		+ yesterday_firstdeps
+		+ last_week_firstdeps
+		+ last_month_firstdeps
+	)
+	alltime_income = (
+		today_income + yesterday_income + last_week_income + last_month_income
+	)
+
+	balance, status_code = await APIRequest.get('/base/admin_balance')
+
+	signals_gens = [
+		[info[k] for k, _ in info.items()] for _, info in result['signals'].items()
+	]
+	signals_gens = sum(sum(x) for x in signals_gens)
+
+	api_count = sum([apinum for partnerhash, apinum in result['api_count'].items()])
+
+	messages = [
+		'<b>СТАТИСТИКА ПО ВСЕМ БОТАМ</b>\n',
+		'<b>ЗА ВСЕ ВРЕМЯ</b>',
+		f'💰️ Баланс: {balance["balance"]} RUB\n',
+		f'Всего пользователей: {data["users_count"]}',
+		f'Депозиты за все время: {alltime_deps}',
+		f'Доход за все время: {alltime_income}',
+		f'Первые депозиты за все время: {alltime_firstdeps}',
+		f'API за все время: {api_count}',
+		f'Сгенерировано сигналов: {signals_gens}\n',
+		f'Пользователей на этапе регистрации: {data["users_notreg_count"]}',
+		f'Пользователей на этапе пополнения: {data["users_nottopup_count"]}',
+		f'Пользователей на этапе игры: {data["users_gamed_count"]}\n',
+		f'Пользователей за сегодня: {data["users_today"]}',
+		f'├ Пользователей за вчера: {data["users_yesterday"]}',
+		f'├ Пользователей за неделю: {data["users_lastweek"]}',
+		f'└ Пользователей за месяц: {data["users_month"]}\n',
+		f'Сумма депозитов за сегодня: {today_deps}',
+		f'├ Сумма депозитов за вчера: {yesterday_deps}',
+		f'├ Сумма депозитов за неделю: {last_week_deps}',
+		f'└ Сумма депозитов за месяц: {last_month_deps}\n',
+		f'Первые депозиты за сегодня: {today_firstdeps}',
+		f'├ Первые депозиты за вчера: {yesterday_firstdeps}',
+		f'├ Первые депозиты за неделю: {last_week_firstdeps}',
+		f'└ Первые депозиты за месяц: {last_month_firstdeps}\n',
+		f'Доход за сегодня: {today_income}',
+		f'├ Доход за вчера: {yesterday_income}',
+		f'├ Доход за неделю: {last_week_income}',
+		f'└ Доход за месяц: {last_month_income}',
+	]
+
+	await call.message.edit_text(
+		'\n'.join(messages),
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.create_admin_statistics_panel_menu(),
+	)
+
+
+@admin_router.callback_query(F.data == 'admin_statistics_panel_mines')
+async def admin_statistics_panel_mines_callback(call: CallbackQuery):
+	result, code = await APIRequest.get('/base/stats')
+
+	stats = result['data']
+
+	data = await collect_stats({'game': 'Mines'})
+
+	api_count = sum([apinum for partnerhash, apinum in result['api_count'].items()])
+
+	today_firstdeps = len(
+		[dep['amount'] for dep in stats['today']['firstdep'] if dep['game'] == 'Mines']
+	)
+	yesterday_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['yesterday']['firstdep']
+			if dep['game'] == 'Mines'
+		]
+	)
+	last_week_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['last_week']['firstdep']
+			if dep['game'] == 'Mines'
+		]
+	)
+	last_month_firstdeps = len(
+		[
+			dep['amount']
+			for dep in stats['last_month']['firstdep']
+			if dep['game'] == 'Mines'
+		]
+	)
+
+	today_deps = sum(
+		[dep['amount'] for dep in stats['today']['firstdep'] if dep['game'] == 'Mines']
+	) + sum([dep['amount'] for dep in stats['today']['dep'] if dep['game'] == 'Mines'])
+	yesterday_deps = sum(
+		[
+			dep['amount']
+			for dep in stats['yesterday']['firstdep']
+			if dep['game'] == 'Mines'
+		]
+	) + sum(
+		[dep['amount'] for dep in stats['yesterday']['dep'] if dep['game'] == 'Mines']
+	)
+	last_week_deps = sum(
+		[
+			dep['amount']
+			for dep in stats['last_week']['firstdep']
+			if dep['game'] == 'Mines'
+		]
+	) + sum(
+		[dep['amount'] for dep in stats['last_week']['dep'] if dep['game'] == 'Mines']
+	)
+	last_month_deps = sum(
+		[
+			dep['amount']
+			for dep in stats['last_month']['firstdep']
+			if dep['game'] == 'Mines'
+		]
+	) + sum(
+		[dep['amount'] for dep in stats['last_month']['dep'] if dep['game'] == 'Mines']
+	)
+
+	today_income = sum(
+		[dep['income'] for dep in stats['today']['income'] if dep['game'] == 'Mines']
+	)
+	yesterday_income = sum(
+		[
+			dep['income']
+			for dep in stats['yesterday']['income']
+			if dep['game'] == 'Mines'
+		]
+	)
+	last_week_income = sum(
+		[
+			dep['income']
+			for dep in stats['last_week']['income']
+			if dep['game'] == 'Mines'
+		]
+	)
+	last_month_income = sum(
+		[
+			dep['income']
+			for dep in stats['last_month']['income']
+			if dep['game'] == 'Mines'
+		]
+	)
+
+	alltime_deps = today_deps + yesterday_deps + last_week_deps + last_month_deps
+	other_dates_firstdep = [info for name, info in stats.items() if name == 'firstdep']
+	others_firstdep = len(
+		[dep['x'] for dep in other_dates_firstdep if dep['game'] == 'Mines']
+	)
+
+	alltime_firstdeps = (
+		others_firstdep
+		+ today_firstdeps
+		+ yesterday_firstdeps
+		+ last_week_firstdeps
+		+ last_month_firstdeps
+	)
+	alltime_income = (
+		today_income + yesterday_income + last_week_income + last_month_income
+	)
+
+	signals_gens = [
+		[info[k] for k, _ in info.items()]
+		for name, info in result['signals'].items()
+		if name == 'Mines'
+	]
+	signals_gens = sum(sum(x) for x in signals_gens)
+
+	balance, status_code = await APIRequest.get('/base/admin_balance')
+
+	messages = [
+		'<b>💣️ СТАТИСТИКА ПО MINES</b>\n',
+		'<b>ЗА ВСЕ ВРЕМЯ</b>',
+		f'💰️ Баланс: {balance["balance"]} RUB\n',
+		f'Всего пользователей: {data["users_count"]}',
+		f'Депозиты за все время: {alltime_deps}',
+		f'Доход за все время: {alltime_income}',
+		f'Первые депозиты за все время: {alltime_firstdeps}',
+		f'API за все время: {api_count}',
+		f'Сгенерировано сигналов: {signals_gens}\n',
+		f'Пользователей на этапе регистрации: {data["users_notreg_count"]}',
+		f'Пользователей на этапе пополнения: {data["users_nottopup_count"]}',
+		f'Пользователей на этапе игры: {data["users_gamed_count"]}\n',
+		f'Пользователей за сегодня: {data["users_today"]}',
+		f'├ Пользователей за вчера: {data["users_yesterday"]}',
+		f'├ Пользователей за неделю: {data["users_lastweek"]}',
+		f'└ Пользователей за месяц: {data["users_month"]}\n',
+		f'Сумма депозитов за сегодня: {today_deps}',
+		f'├ Сумма депозитов за вчера: {yesterday_deps}',
+		f'├ Сумма депозитов за неделю: {last_week_deps}',
+		f'└ Сумма депозитов за месяц: {last_month_deps}\n',
+		f'Первые депозиты за сегодня: {today_firstdeps}',
+		f'├ Первые депозиты за вчера: {yesterday_firstdeps}',
+		f'├ Первые депозиты за неделю: {last_week_firstdeps}',
+		f'└ Первые депозиты за месяц: {last_month_firstdeps}\n',
+		f'Доход за сегодня: {today_income}',
+		f'├ Доход за вчера: {yesterday_income}',
+		f'├ Доход за неделю: {last_week_income}',
+		f'└ Доход за месяц: {last_month_income}',
+	]
+
+	await call.message.edit_text(
+		'\n'.join(messages),
+		parse_mode=ParseMode.HTML,
+		reply_markup=inline.create_admin_statistics_panel_menu_game(),
+	)
+
+
+################################################################################
 ################################# Топ воркеров #################################
 ################################################################################
 
@@ -2629,9 +3063,94 @@ async def admin_top_workers_callback(call: CallbackQuery):
 	)
 
 
+@admin_router.callback_query(F.data == 'admin_top_workers')
+async def admin_top_workers_callback(call: CallbackQuery):
+	result, code = await APIRequest.get('/base/stats?exclude=1')
+
+	stats = result['data']
+	income_last_month = (
+		stats['last_month']['income']
+		+ stats['today']['income']
+		+ stats['last_week']['income']
+		+ stats['yesterday']['income']
+	)
+	other_dates_income = [info for name, info in stats.items() if name == 'income']
+	others_income = [dep for dep in other_dates_income]
+	alltime_income = income_last_month + others_income
+
+	partners_last_month = {}
+	partners_alltime = {}
+
+	# Last Month
+	for partner in income_last_month:
+		partner_hash = partner['partner_hash']
+
+		partners_last_month[partner_hash] = partner['x']
+
+	# All time
+	for partner in alltime_income:
+		partner_hash = partner['partner_hash']
+
+		partners_alltime[partner_hash] = partner['x']
+
+	partners_last_month = dict(
+		sorted(partners_last_month.items(), key=lambda item: item[1], reverse=True)
+	)
+	partners_last_month = dict(list(partners_last_month.items())[:10])
+
+	partners_alltime = dict(
+		sorted(partners_alltime.items(), key=lambda item: item[1], reverse=True)
+	)
+	partners_alltime = dict(list(partners_alltime.items())[:10])
+
+	# Calculate top 10 workers by income last month
+
+	partners_last_month_messages = []
+
+	for i, (partner_hash, income) in enumerate(partners_last_month.items()):
+		if i == 0:
+			partners_last_month_messages.append(f'🥇 {partner_hash}: {income} рублей')
+		elif i == 1:
+			partners_last_month_messages.append(f'🥈 {partner_hash}: {income} рублей')
+		elif i == 3:
+			partners_last_month_messages.append(f'🥉 {partner_hash}: {income} рублей')
+		else:
+			partners_last_month_messages.append(f'🏅 {partner_hash}: {income} рублей')
+
+	partners_last_month_messages = '\n'.join(partners_last_month_messages)
+
+	# Calculate top 10 workers by income all time
+
+	partners_alltime_messages = []
+
+	for i, (partner_hash, income) in enumerate(partners_alltime.items()):
+		if i == 0:
+			partners_alltime_messages.append(f'🥇 {partner_hash}: {income} рублей')
+		elif i == 1:
+			partners_alltime_messages.append(f'🥈 {partner_hash}: {income} рублей')
+		elif i == 3:
+			partners_alltime_messages.append(f'🥉 {partner_hash}: {income} рублей')
+		else:
+			partners_alltime_messages.append(f'🏅 {partner_hash}: {income} рублей')
+
+	partners_alltime_messages = '\n'.join(partners_alltime_messages)
+
+	# Print Message
+	await call.message.edit_text(
+		f"""🏆 Топ воркеров по доходу за последний месяц
+
+{partners_last_month_messages}
+
+🏆 Топ воркеров по доходу за все время
+
+{partners_alltime_messages}""",
+		reply_markup=inline.get_admin_top_workers_markup(),
+	)
+
+
 @admin_router.callback_query(F.data == 'admin_top_workers_by_deps')
 async def admin_top_workers_by_deps_callback(call: CallbackQuery):
-	result, code = await APIRequest.get('/base/stats?exclude=1')
+	result, code = await APIRequest.get('/base/stats')
 
 	stats = result['data']
 
@@ -2667,13 +3186,19 @@ async def admin_top_workers_by_deps_callback(call: CallbackQuery):
 	for partner in last_month_deps:
 		partner_hash = partner['partner_hash']
 
-		partners_last_month[partner_hash] = partner['amount']
+		if partners_last_month.get(partner_hash) is not None:
+			partners_last_month[partner_hash] += partner['amount']
+		else:
+			partners_last_month[partner_hash] = partner['amount']
 
 	# All time
 	for partner in alltime_deps:
 		partner_hash = partner['partner_hash']
 
-		partners_alltime[partner_hash] = partner['amount']
+		if partners_alltime.get(partner_hash) is not None:
+			partners_alltime[partner_hash] += partner['amount']
+		else:
+			partners_alltime[partner_hash] = partner['amount']
 
 	partners_last_month = dict(
 		sorted(partners_last_month.items(), key=lambda item: item[1], reverse=True)
